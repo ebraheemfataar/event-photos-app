@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/compressImage";
+import PromptChips from "@/components/PromptChips";
 
 export default function PhotoUploadForm({ eventId }: { eventId: string }) {
   const [guestName, setGuestName] = useState("");
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -36,9 +38,11 @@ export default function PhotoUploadForm({ eventId }: { eventId: string }) {
           storage_path: path,
           guest_name: guestName.trim() || null,
           content_type: compressed.type,
+          prompt_id: selectedPromptId,
         });
         if (insertError) throw insertError;
       }
+      setSelectedPromptId(null);
     } catch {
       setError("Upload failed. Please try again.");
     } finally {
@@ -63,6 +67,8 @@ export default function PhotoUploadForm({ eventId }: { eventId: string }) {
           className="rounded-lg border border-zinc-300 px-4 py-3 text-base focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-100"
         />
       </label>
+
+      <PromptChips selectedId={selectedPromptId} onSelect={setSelectedPromptId} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

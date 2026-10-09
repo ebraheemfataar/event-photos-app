@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import type { Photo } from "@/lib/types";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { getPromptById } from "@/lib/prompts";
 
 export default function PhotoGrid({ photos }: { photos: Photo[] }) {
   const [openPhotoId, setOpenPhotoId] = useState<string | null>(null);
@@ -34,29 +35,37 @@ export default function PhotoGrid({ photos }: { photos: Photo[] }) {
   return (
     <>
       <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-        {photos.map((photo) => (
-          <button
-            key={photo.id}
-            type="button"
-            onClick={() => setOpenPhotoId(photo.id)}
-            className="relative aspect-square overflow-hidden rounded-lg bg-zinc-100 text-left dark:bg-zinc-900"
-          >
-            <Image
-              src={publicUrl(photo.storage_path)}
-              alt={
-                photo.guest_name ? `Photo by ${photo.guest_name}` : "Event photo"
-              }
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-              className="object-cover"
-            />
-            {photo.guest_name && (
-              <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-2 py-1 text-xs text-white">
-                {photo.guest_name}
-              </span>
-            )}
-          </button>
-        ))}
+        {photos.map((photo) => {
+          const prompt = getPromptById(photo.prompt_id);
+          return (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => setOpenPhotoId(photo.id)}
+              className="relative aspect-square overflow-hidden rounded-lg bg-zinc-100 text-left dark:bg-zinc-900"
+            >
+              <Image
+                src={publicUrl(photo.storage_path)}
+                alt={
+                  photo.guest_name ? `Photo by ${photo.guest_name}` : "Event photo"
+                }
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                className="object-cover"
+              />
+              {prompt && (
+                <span className="absolute left-2 top-2 truncate rounded-full bg-black/60 px-2 py-1 text-xs text-white">
+                  {prompt.emoji} {prompt.label}
+                </span>
+              )}
+              {photo.guest_name && (
+                <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-2 py-1 text-xs text-white">
+                  {photo.guest_name}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {openPhoto && (
@@ -87,11 +96,22 @@ export default function PhotoGrid({ photos }: { photos: Photo[] }) {
               className="object-contain"
             />
           </div>
-          {openPhoto.guest_name && (
-            <p className="absolute bottom-6 text-sm text-white/80">
-              {openPhoto.guest_name}
-            </p>
-          )}
+          {(() => {
+            const openPrompt = getPromptById(openPhoto.prompt_id);
+            const caption = [
+              openPrompt && `${openPrompt.emoji} ${openPrompt.label}`,
+              openPhoto.guest_name,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              caption && (
+                <p className="absolute bottom-6 text-sm text-white/80">
+                  {caption}
+                </p>
+              )
+            );
+          })()}
         </div>
       )}
     </>

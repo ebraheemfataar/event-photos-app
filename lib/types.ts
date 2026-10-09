@@ -12,5 +12,6 @@ export type Photo = {
   storage_path: string;
   guest_name: string | null;
   content_type: string | null;
+  prompt_id: string | null;
   created_at: string;
 };
