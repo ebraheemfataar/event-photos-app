@@ -2,25 +2,197 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Snap & Share V3 — "Gallery" direction. Neutral UI, vivid photos. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --bg: #F4F4F2;
+  --bg-2: #ECECE9;
+  --surface: #FFFFFF;
+  --surface-2: #F0F0ED;
+  --surface-3: #E6E6E2;
+  --line: #E2E2DE;
+  --line-strong: #CFCFCA;
+  --ink: #0E0E10;
+  --ink-2: #55555B;
+  --ink-3: #6B6B71;
+  --mute: #8A8A90;
+  --btn: #0E0E10;
+  --btn-ink: #FFFFFF;
+  --accent: #FF5A1F;
+  --blue: #2B2BFF;
+  --live: #0F7A3D;
+  --warn-bg: #FFF1E8;
+  --warn-line: #FFC9AE;
+  --warn-ink: #7A2A05;
+  --danger: #C01F2F;
+  --danger-bg: #FDECEE;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --ring: 0 0 0 2px #F4F4F2, 0 0 0 4px #0E0E10;
+  --sh-1: 0 1px 2px rgba(14, 14, 16, 0.05), 0 2px 8px rgba(14, 14, 16, 0.04);
+  --sh-2: 0 30px 60px -24px rgba(14, 14, 16, 0.22), 0 8px 20px -8px rgba(14, 14, 16, 0.1);
+  --glass: rgba(244, 244, 242, 0.78);
+  color-scheme: light;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --bg: #0C0C0D;
+  --bg-2: #111113;
+  --surface: #161618;
+  --surface-2: #1E1E21;
+  --surface-3: #26262A;
+  --line: #26262A;
+  --line-strong: #3A3A3F;
+  --ink: #F4F4F2;
+  --ink-2: #B6B6BC;
+  --ink-3: #8F8F96;
+  --mute: #6E6E75;
+  --btn: #F4F4F2;
+  --btn-ink: #0E0E10;
+  --accent: #FF6A33;
+  --blue: #5B5BFF;
+  --live: #4ADE80;
+  --warn-bg: rgba(255, 106, 51, 0.1);
+  --warn-line: rgba(255, 106, 51, 0.35);
+  --warn-ink: #FFB898;
+  --danger: #FF8A94;
+  --danger-bg: rgba(255, 90, 100, 0.12);
+
+  --ring: 0 0 0 2px #0C0C0D, 0 0 0 4px #F4F4F2;
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sh-2: 0 30px 60px -24px rgba(0, 0, 0, 0.7), 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+  --glass: rgba(12, 12, 13, 0.78);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-mute: var(--mute);
+  --color-btn: var(--btn);
+  --color-btn-ink: var(--btn-ink);
+  --color-accent: var(--accent);
+  --color-blue: var(--blue);
+  --color-live: var(--live);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-line: var(--warn-line);
+  --color-warn-ink: var(--warn-ink);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-glass: var(--glass);
+
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* Headline: Geist 500, tight tracking. Pair the second half with text-mute. */
+@utility hd {
+  font-weight: 500;
+  letter-spacing: -0.045em;
+}
+
+/* Small uppercase label in Geist Mono. */
+@utility mono {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@utility glass {
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Visible focus ring on every interactive element. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* New photos arriving live. */
+.arrive {
+  animation: arrive 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(16px) rotate(4deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Live status dot. */
+.pulse {
+  animation: pulse 1.8s ease-out infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* Skeleton shimmer while images / routes load. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Upload progress bar. */
+.bar {
+  background: linear-gradient(90deg, var(--ink) 0%, var(--ink-2) 50%, var(--ink) 100%);
+  background-size: 200% 100%;
+  animation: flow 1.4s linear infinite;
+}
+@keyframes flow {
+  from { background-position: 0 0; }
+  to { background-position: 200% 0; }
+}
+
+.sheet-in {
+  animation: sheet-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

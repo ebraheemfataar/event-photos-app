@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MoonIcon, SunIcon } from "@/components/icons";
 
-export default function ThemeToggle() {
+export default function ThemeToggle({
+  variant = "icon",
+  className = "",
+}: {
+  /** "icon" = 44px round button for headers; "nav" = labelled sidebar row. */
+  variant?: "icon" | "nav";
+  className?: string;
+}) {
   const [isDark, setIsDark] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -19,14 +27,31 @@ export default function ThemeToggle() {
     setIsDark(next);
   }
 
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+  const icon = isDark === null ? null : isDark ? <SunIcon size={21} /> : <MoonIcon size={21} />;
+
+  if (variant === "nav") {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={label}
+        className={`flex h-12 items-center gap-3.5 rounded-xl px-3 text-[15px] font-medium text-ink transition-colors hover:bg-surface-3 ${className}`}
+      >
+        <span className="flex h-[22px] w-[22px] items-center justify-center">{icon}</span>
+        {isDark ? "Light mode" : "Dark mode"}
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={toggle}
-      aria-label="Toggle dark mode"
-      className="fixed right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-300 bg-white text-lg shadow-sm transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-800"
+      aria-label={label}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-surface-3 ${className}`}
     >
-      {isDark === null ? null : isDark ? "☀️" : "🌙"}
+      {icon}
     </button>
   );
 }

@@ -3,16 +3,19 @@
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import type { Photo } from "@/lib/types";
-import PhotoGrid from "./PhotoGrid";
+import EventAlbum, { type EventAlbumProps } from "./EventAlbum";
 
 export default function PhotoGallery({
   eventId,
   initialPhotos,
+  ...albumProps
 }: {
   eventId: string;
   initialPhotos: Photo[];
-}) {
+} & Omit<EventAlbumProps, "eventId" | "photos" | "initialPhotoIds">) {
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos);
+  // Photos present on first render; anything else arrived live and animates in.
+  const [initialPhotoIds] = useState(() => new Set(initialPhotos.map((p) => p.id)));
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -40,5 +43,12 @@ export default function PhotoGallery({
     };
   }, [eventId]);
 
-  return <PhotoGrid photos={photos} />;
+  return (
+    <EventAlbum
+      eventId={eventId}
+      photos={photos}
+      initialPhotoIds={initialPhotoIds}
+      {...albumProps}
+    />
+  );
 }

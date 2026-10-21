@@ -13,13 +13,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 There is no test suite/framework configured in this repo.
 
-Database migrations live in `supabase/migrations/*.sql` and are applied manually against the linked Supabase project (SQL editor, or `supabase db push` if the CLI is linked) — there is no `supabase/config.toml` or local Supabase stack.
+**Local database (Supabase CLI, needs Docker running):**
+- `npm run db:start` — start the local stack (API `http://127.0.0.1:54321`, Studio `http://127.0.0.1:54323`); applies every migration + `supabase/seed.sql` on first start
+- `npm run db:env` — write `.env.development.local` from the running stack, so `npm run dev` uses the local DB (delete that file to point dev back at the hosted project)
+- `npm run db:reset` — rebuild the local DB from migrations + seed
+- `npm run db:stop` — stop the stack
+
+Database migrations live in `supabase/migrations/*.sql`. Locally they're applied by the CLI; for the hosted project they're applied manually (SQL editor, or `npx supabase link` then `npx supabase db push`). Production uses `.env.local` / the host's env vars. The seed is local-only and gives a fixed event: guest `/e/00000000-0000-4000-8000-000000000001`, host `/host/00000000-0000-4000-8000-000000000001?t=00000000-0000-4000-8000-0000000000aa`.
+
+`/demo` is a static mock album (no Supabase) using `lib/demoPhotos.ts`; `?as=host` and `?empty=1` show the other states.
 
 ## Architecture
 
 **No backend.** There are no API routes (`app/api` doesn't exist). Every read/write goes directly from React components (server or client) to Supabase via `lib/supabase/client.ts` (`createSupabaseClient()`, a module-level singleton around `@supabase/supabase-js`). Authorization is enforced entirely by Postgres Row Level Security policies defined in `supabase/migrations/`, since there is no server layer to guard access.
 
-**Auth model is a bearer token in the URL, not real auth.** `events.host_token` is a random UUID generated on event creation. `CreateEventForm` inserts the event and redirects to `/host/[id]?t=<host_token>`. `app/host/[id]/page.tsx` treats the request as "the host" purely by comparing the `t` query param to the stored token — anyone with that URL has host access. Guests only ever see `/e/[id]` (no token).
+**Auth model is a bearer token in the URL, not real auth.** `events.host_token` is a random UUID generated on event creation. Since `0003_lock_down_host_token.sql`, anon can't select `host_token` or insert into `events` directly: `CreateEventForm` calls the `create_event` RPC (the only place the token is returned) and redirects to `/host/[id]?t=<host_token>`, and `app/host/[id]/page.tsx` checks the `t` param with the `is_event_host` RPC. Anyone with the host URL has host access. Guests only ever see `/e/[id]` (no token). Never add `host_token` back to an `events` select — it errors.
 
 **Core data flow:**
 - `app/page.tsx` → `CreateEventForm` → inserts into `events`, redirects to the host URL.

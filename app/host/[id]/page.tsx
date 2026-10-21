@@ -2,8 +2,9 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import type { Event, Photo } from "@/lib/types";
-import QRCodeCard from "@/components/QRCodeCard";
 import PhotoGallery from "@/components/PhotoGallery";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function HostPage({
   params,
@@ -19,13 +20,23 @@ export default async function HostPage({
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, host_token, is_active, created_at")
+    .select("id, name, is_active, created_at")
     .eq("id", id)
     .single<Event>();
 
   if (!event) notFound();
 
-  const isHost = Boolean(t) && t === event.host_token;
+  // The token is checked in the database (0003_lock_down_host_token.sql) and
+  // never read back. Skip the call for anything that isn't a uuid, which
+  // Postgres would reject anyway.
+  let isHost = false;
+  if (t && UUID_RE.test(t)) {
+    const { data } = await supabase.rpc("is_event_host", {
+      p_event_id: event.id,
+      p_host_token: t,
+    });
+    isHost = data === true;
+  }
 
   const headersList = await headers();
   const host = headersList.get("host");
@@ -42,31 +53,14 @@ export default async function HostPage({
     .returns<Photo[]>();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center gap-10 px-6 py-16">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          {event.name}
-        </h1>
-        {isHost ? (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Share this QR code or link with your guests so they can add
-            photos.
-          </p>
-        ) : (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Live photo gallery for this event.
-          </p>
-        )}
-      </div>
-
-      {isHost && <QRCodeCard guestUrl={guestUrl} />}
-
-      <div className="flex w-full flex-col items-center gap-4">
-        <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
-          Photos
-        </h2>
-        <PhotoGallery eventId={event.id} initialPhotos={photos ?? []} />
-      </div>
-    </div>
+    <PhotoGallery
+      eventId={event.id}
+      initialPhotos={photos ?? []}
+      eventName={event.name}
+      isActive={event.is_active}
+      createdAt={event.created_at}
+      mode={isHost ? "host" : "viewer"}
+      guestUrl={guestUrl}
+    />
   );
 }

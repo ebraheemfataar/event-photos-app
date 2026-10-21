@@ -1,7 +1,8 @@
+// host_token is deliberately absent: since 0003_lock_down_host_token.sql anon
+// can't select it. It's only ever returned once, by the create_event RPC.
 export type Event = {
   id: string;
   name: string;
-  host_token: string;
   is_active: boolean;
   created_at: string;
 };

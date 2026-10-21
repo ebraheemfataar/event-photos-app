@@ -1,6 +1,7 @@
 "use client";
 
 import { PROMPTS } from "@/lib/prompts";
+import { promptSwatch } from "@/lib/display";
 
 export default function PromptChips({
   selectedId,
@@ -11,25 +12,31 @@ export default function PromptChips({
 }) {
   return (
     <div className="flex flex-col gap-2 text-left">
-      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        Photo idea (optional)
-      </span>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <span className="mono text-[10px] text-ink-3">Prompt · optional</span>
+      <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
         {PROMPTS.map((prompt) => {
           const isSelected = prompt.id === selectedId;
+          const swatch = promptSwatch(prompt.id);
           return (
             <button
               key={prompt.id}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => onSelect(isSelected ? null : prompt.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-sm transition-colors ${
+              className={`flex min-h-11 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-full border py-1.5 pl-[5px] pr-3.5 text-sm font-medium transition-[background-color,transform] active:scale-[0.94] ${
                 isSelected
-                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                  : "border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  ? "border-btn bg-btn text-btn-ink"
+                  : "border-line-strong bg-surface text-ink hover:bg-surface-3"
               }`}
             >
-              <span>{prompt.emoji}</span>
-              <span>{prompt.label}</span>
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-base"
+                style={{ background: swatch.bg }}
+              >
+                {prompt.emoji}
+              </span>
+              {prompt.label}
             </button>
           );
         })}

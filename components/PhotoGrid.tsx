@@ -1,119 +1,142 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import type { Photo } from "@/lib/types";
-import { createSupabaseClient } from "@/lib/supabase/client";
 import { getPromptById } from "@/lib/prompts";
+import { avatarSwatch, initialOf, promptSwatch, timeAgo } from "@/lib/display";
 
-export default function PhotoGrid({ photos }: { photos: Photo[] }) {
-  const [openPhotoId, setOpenPhotoId] = useState<string | null>(null);
+type Common = {
+  photos: Photo[];
+  freshIds: Set<string>;
+  onOpen: (index: number) => void;
+  publicUrl: (path: string) => string;
+};
 
-  useEffect(() => {
-    if (!openPhotoId) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpenPhotoId(null);
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openPhotoId]);
+function altFor(photo: Photo) {
+  return photo.guest_name ? `Photo by ${photo.guest_name}` : "Event photo";
+}
 
-  if (photos.length === 0) {
-    return (
-      <p className="py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
-        No photos yet — be the first to upload one!
-      </p>
-    );
-  }
-
-  const supabase = createSupabaseClient();
-  const publicUrl = (path: string) =>
-    supabase.storage.from("event-photos").getPublicUrl(path).data.publicUrl;
-
-  const openPhoto = photos.find((p) => p.id === openPhotoId) ?? null;
-
+/** Image that shows a shimmer skeleton until it has loaded. */
+function LoadingImage({ src, alt, sizes }: { src: string; alt: string; sizes: string }) {
+  const [loaded, setLoaded] = useState(false);
   return (
     <>
-      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-        {photos.map((photo) => {
-          const prompt = getPromptById(photo.prompt_id);
-          return (
-            <button
-              key={photo.id}
-              type="button"
-              onClick={() => setOpenPhotoId(photo.id)}
-              className="relative aspect-square overflow-hidden rounded-lg bg-zinc-100 text-left dark:bg-zinc-900"
-            >
-              <Image
-                src={publicUrl(photo.storage_path)}
-                alt={
-                  photo.guest_name ? `Photo by ${photo.guest_name}` : "Event photo"
-                }
-                fill
-                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                className="object-cover"
-              />
-              {prompt && (
-                <span className="absolute left-2 top-2 truncate rounded-full bg-black/60 px-2 py-1 text-xs text-white">
-                  {prompt.emoji} {prompt.label}
-                </span>
-              )}
-              {photo.guest_name && (
-                <span className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-2 py-1 text-xs text-white">
-                  {photo.guest_name}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {openPhoto && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setOpenPhotoId(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-        >
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => setOpenPhotoId(null)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl leading-none text-white hover:bg-white/20"
-          >
-            ×
-          </button>
-          <div className="relative h-full max-h-[90vh] w-full max-w-3xl">
-            <Image
-              src={publicUrl(openPhoto.storage_path)}
-              alt={
-                openPhoto.guest_name
-                  ? `Photo by ${openPhoto.guest_name}`
-                  : "Event photo"
-              }
-              fill
-              sizes="100vw"
-              className="object-contain"
-            />
-          </div>
-          {(() => {
-            const openPrompt = getPromptById(openPhoto.prompt_id);
-            const caption = [
-              openPrompt && `${openPrompt.emoji} ${openPrompt.label}`,
-              openPhoto.guest_name,
-            ]
-              .filter(Boolean)
-              .join(" · ");
-            return (
-              caption && (
-                <p className="absolute bottom-6 text-sm text-white/80">
-                  {caption}
-                </p>
-              )
-            );
-          })()}
-        </div>
-      )}
+      {!loaded && <span aria-hidden="true" className="skeleton absolute inset-0" />}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        sizes={sizes}
+        onLoad={() => setLoaded(true)}
+        className={`object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+      />
     </>
+  );
+}
+
+/** 3-column, 4:5 tiles, 2px gap, edge to edge on mobile. */
+export function GridView({ photos, freshIds, onOpen, publicUrl }: Common) {
+  return (
+    <div className="grid grid-cols-3 gap-0.5 lg:gap-1">
+      {photos.map((photo, i) => {
+        const prompt = getPromptById(photo.prompt_id);
+        const fresh = freshIds.has(photo.id);
+        return (
+          <button
+            key={photo.id}
+            type="button"
+            onClick={() => onOpen(i)}
+            aria-label={`Open ${altFor(photo).toLowerCase()}${prompt ? `, ${prompt.label}` : ""}`}
+            className={`group relative aspect-[4/5] overflow-hidden bg-surface-2 lg:rounded-md ${fresh ? "arrive" : ""}`}
+          >
+            <LoadingImage
+              src={publicUrl(photo.storage_path)}
+              alt={altFor(photo)}
+              sizes="(min-width: 1024px) 300px, 33vw"
+            />
+            <span aria-hidden="true" className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/15" />
+            {fresh && (
+              <span className="absolute right-1.5 top-1.5 flex h-5 items-center rounded-full bg-white px-[7px] text-[10px] font-bold text-[#0E0E10]">
+                NEW
+              </span>
+            )}
+            {prompt && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-1.5 left-1.5 text-[13px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
+              >
+                {prompt.emoji}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Full-width posts: avatar initial, name, time, prompt pill, photo. */
+export function FeedView({ photos, freshIds, onOpen, publicUrl }: Common) {
+  return (
+    <div className="mx-auto flex w-full max-w-[470px] flex-col gap-3 pt-2.5 lg:gap-6">
+      {photos.map((photo, i) => {
+        const prompt = getPromptById(photo.prompt_id);
+        const avatar = avatarSwatch(photo.guest_name);
+        return (
+          <article key={photo.id} className={freshIds.has(photo.id) ? "arrive" : ""}>
+            <div className="flex h-[52px] items-center gap-2.5 px-3.5 lg:px-0">
+              <span
+                aria-hidden="true"
+                className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                style={{ background: avatar.bg, color: avatar.ink }}
+              >
+                {initialOf(photo.guest_name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{photo.guest_name || "Guest"}</div>
+                <div className="text-xs text-ink-3" suppressHydrationWarning>
+                  {timeAgo(photo.created_at)}
+                </div>
+              </div>
+              {prompt && (
+                <span className="flex h-[30px] max-w-[55%] shrink-0 items-center gap-1.5 rounded-full border border-line-strong pl-1 pr-3 text-xs font-medium">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-xs"
+                    style={{ background: promptSwatch(prompt.id).bg }}
+                  >
+                    {prompt.emoji}
+                  </span>
+                  <span className="truncate">{prompt.label}</span>
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onOpen(i)}
+              aria-label={`Open ${altFor(photo).toLowerCase()}`}
+              className="relative block aspect-[4/5] w-full cursor-zoom-in overflow-hidden bg-surface-2 lg:rounded-lg"
+            >
+              <LoadingImage
+                src={publicUrl(photo.storage_path)}
+                alt={altFor(photo)}
+                sizes="(min-width: 1024px) 470px, 100vw"
+              />
+            </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+export function SkeletonGrid({ count = 9 }: { count?: number }) {
+  return (
+    <div aria-busy="true" aria-label="Loading photos" className="grid grid-cols-3 gap-0.5 lg:gap-1">
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} className="skeleton aspect-[4/5] lg:rounded-md" />
+      ))}
+    </div>
   );
 }
