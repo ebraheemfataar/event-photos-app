@@ -10,8 +10,8 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 |---|---|---|---|
 | 0 | MVP: create event, QR, upload, live gallery | ✅ Shipped | — |
 | 1 | V3 visual redesign + demo + local DB | ✅ Shipped (`d3af8e1`) | — |
-| **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) | ⏭️ Next | S |
-| **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | Planned | M |
+| **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) | 🔧 Built locally — apply `0005` to prod | S |
+| **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | ⏭️ Next | M |
 | **2c** | **Upload limits + guests delete their own** | Planned | M |
 | 3 | Host photo delete | Planned | S |
 | 4 | Privacy extras: consent, storage cleanup, retention | Planned | S–M |
@@ -61,13 +61,19 @@ Phase 3 (host delete) is small and can slot in alongside 2a–2c.
 5. **Guests can't delete their own photos** (a privacy-law expectation, e.g. POPIA — referenced in the design boards).
 6. **Smaller:** EXIF/GPS stripping is assumed but untested; deleted photos leave their file bytes in storage; nothing deletes old albums.
 
-### Phase 2a — Quick wins · Size S · SQL + one check
+### Phase 2a — Quick wins · Size S · 🔧 built, verified locally
 
-- Migration: set `allowed_mime_types` (`image/jpeg`, `image/png`, `image/webp`, `image/heic`, `image/heif`) and `file_size_limit` (~10 MB) on the `event-photos` bucket.
-- Migration: storage insert policy requires `e.is_active`, matching the `photos` insert policy.
-- Verify GPS/EXIF is stripped by `lib/compressImage.ts` (`preserveExif` off) and add a small automated check — the repo's first test.
+- ✅ `0005_storage_limits_active_uploads.sql`: bucket allows only JPEG/PNG/WebP/HEIC/HEIF up to 10 MB; storage uploads require an **active** event (matching the `photos` insert policy).
+- ✅ GPS/EXIF stripping verified: the library always re-encodes on a canvas and only copies EXIF back with `preserveExif` (now explicit `false` in `lib/compressOptions.ts`). `tests/exif.spec.ts` builds a GPS-tagged JPEG, compresses it with the app's options in Chrome and checks no EXIF survives (and fails if `preserveExif` is turned on).
+- ✅ Found and fixed: the compression web worker downloaded the library from `cdn.jsdelivr.net` at upload time. It now loads a self-hosted copy (`public/vendor/`), with the package pinned to that exact version.
+- ✅ First tests: `npm test` (Playwright). `tests/upload.spec.ts` is an opt-in end-to-end guest upload against the local stack, which also asserts no CDN requests.
 
-**Done when:** uploading a non-image or oversized file is rejected by Storage; uploads to a closed event fail; a photo with GPS comes out without it.
+Verified against the local stack: real JPEG to an open event → 200; HTML file, 11 MB file, closed event, made-up event id → rejected.
+Not covered (by design, see 2c): Storage trusts the declared content type, so a non-image labelled `image/jpeg` is still accepted. It's served back as an image, so browsers won't run it. 2c's server-issued uploads can check the actual bytes.
+
+- ✅ **Animated GIFs** (`0006_allow_gif_uploads.sql`): GIFs skip compression, since redrawing keeps only the first frame, and GIFs carry no EXIF. They're capped at 10 MB; larger ones are skipped with a message while the rest of the batch uploads. Uploaded files are now named by their real type (e.g. HEIC that became PNG gets `.png`). Covered by two E2E tests: a two-frame GIF round-trips byte-for-byte, and an 11 MB GIF is skipped.
+
+**To ship:** run `0005`, then `0006`, in the Supabase SQL editor (safe any time; neither breaks the live app), then deploy.
 
 ### Phase 2b — Stop enumeration · Size M · the important one
 

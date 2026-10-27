@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored third-party bundle (see lib/compressOptions.ts) and test output.
+    "public/vendor/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 

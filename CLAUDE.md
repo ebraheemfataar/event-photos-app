@@ -11,7 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run lint` — ESLint (flat config via `eslint.config.*`, uses `eslint-config-next`)
 - `npx tsc --noEmit` — type-check (no dedicated `typecheck` script exists)
 
-There is no test suite/framework configured in this repo.
+- `npm test` — Playwright tests in `tests/`, run in the locally installed Google Chrome. `exif.spec.ts` (always runs) checks that photo compression strips EXIF/GPS. `upload.spec.ts` is an end-to-end guest upload against the local stack; it's skipped unless you set `E2E_BASE_URL=http://localhost:3000` with `npm run db:start`, `npm run db:env` and `npm run dev` running. Never point it at production.
+
+Photo compression settings live in `lib/compressOptions.ts`. GIFs (`PASSTHROUGH_TYPES`) skip compression so they stay animated; they're capped at `MAX_UPLOAD_BYTES` (10 MB, matching the bucket limit) and larger ones are skipped with a message. Videos aren't supported yet. The library's web worker loads from `public/vendor/browser-image-compression@2.0.2.js` (not a CDN); `browser-image-compression` is pinned to exactly that version in `package.json`, so when upgrading it, copy the new `dist/browser-image-compression.js` into `public/vendor/` under the new version name and update `COMPRESSION_WORKER_URL`.
 
 **Local database (Supabase CLI, needs Docker running):**
 - `npm run db:start` — start the local stack (API `http://127.0.0.1:54321`, Studio `http://127.0.0.1:54323`); applies every migration + `supabase/seed.sql` on first start

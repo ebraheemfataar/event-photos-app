@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/compressImage";
+import { MAX_UPLOAD_BYTES, PASSTHROUGH_TYPES, extensionFor } from "@/lib/compressOptions";
 import PromptChips from "@/components/PromptChips";
 import { CameraIcon, ImagesIcon } from "@/components/icons";
 
@@ -17,6 +18,7 @@ export default function PhotoUploadForm({
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -25,18 +27,34 @@ export default function PhotoUploadForm({
 
   async function handleFiles(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
-    const fileList = Array.from(files);
+    // GIFs skip compression (to keep the animation), so they can exceed the
+    // bucket's size cap. Skip those up front and upload the rest.
+    const picked = Array.from(files);
+    const tooBig = picked.filter((f) => PASSTHROUGH_TYPES.includes(f.type) && f.size > MAX_UPLOAD_BYTES);
+    const fileList = picked.filter((f) => !tooBig.includes(f));
+    const skippedNote =
+      tooBig.length === 0
+        ? null
+        : `${tooBig.length === 1 ? "1 GIF was" : `${tooBig.length} GIFs were`} over ${
+            MAX_UPLOAD_BYTES / 1024 / 1024
+          } MB and ${tooBig.length === 1 ? "was" : "were"} skipped.`;
+    setNotice(null);
+    setError(null);
     lastFilesRef.current = fileList;
+    if (fileList.length === 0) {
+      setNotice(skippedNote);
+      resetInputs();
+      return;
+    }
 
     setIsUploading(true);
-    setError(null);
     setProgress({ done: 0, total: fileList.length });
     const supabase = createSupabaseClient();
 
     try {
       for (const file of fileList) {
         const compressed = await compressImage(file);
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const ext = extensionFor(compressed.type, file.name);
         const photoId = crypto.randomUUID();
         const path = `${eventId}/${photoId}.${ext}`;
 
@@ -59,15 +77,24 @@ export default function PhotoUploadForm({
         setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       }
       setSelectedPromptId(null);
-      onUploaded?.(fileList.length);
+      if (skippedNote) {
+        // Keep the sheet open so the guest sees what was skipped.
+        setNotice(`${fileList.length === 1 ? "1 photo" : `${fileList.length} photos`} shared. ${skippedNote}`);
+      } else {
+        onUploaded?.(fileList.length);
+      }
     } catch {
-      setError("Upload failed. Please try again.");
+      setError("Upload failed. Check your connection and try again.");
     } finally {
       setIsUploading(false);
       setProgress(null);
-      if (cameraInputRef.current) cameraInputRef.current.value = "";
-      if (libraryInputRef.current) libraryInputRef.current.value = "";
+      resetInputs();
     }
+  }
+
+  function resetInputs() {
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (libraryInputRef.current) libraryInputRef.current.value = "";
   }
 
   const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
@@ -112,7 +139,8 @@ export default function PhotoUploadForm({
 
       {error && (
         <div role="alert" className="flex items-center gap-2.5 rounded-[14px] bg-danger-bg py-2.5 pl-3 pr-2.5 text-[13px] text-danger">
-          <span className="flex-1">{error} Check your connection.</span>
+          <span className="flex-1">{error}</span>
+          {/* Only set when an upload fails, so there's always a file left to retry. */}
           <button
             type="button"
             onClick={() => handleFiles(lastFilesRef.current)}
@@ -121,6 +149,12 @@ export default function PhotoUploadForm({
             Retry
           </button>
         </div>
+      )}
+
+      {notice && (
+        <p role="status" className="rounded-[14px] border border-warn-line bg-warn-bg px-3 py-2.5 text-[13px] text-warn-ink">
+          {notice}
+        </p>
       )}
 
       <div className="flex flex-col gap-2">
