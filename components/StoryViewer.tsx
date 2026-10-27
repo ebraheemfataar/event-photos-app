@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { Photo } from "@/lib/types";
 import { getPromptById } from "@/lib/prompts";
+import { photoSrc } from "@/lib/photoSrc";
 import { avatarSwatch, initialOf, timeAgo } from "@/lib/display";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@/components/icons";
 
@@ -15,13 +16,11 @@ export default function StoryViewer({
   index,
   onIndexChange,
   onClose,
-  publicUrl,
 }: {
   photos: Photo[];
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
-  publicUrl: (path: string) => string;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -114,7 +113,7 @@ export default function StoryViewer({
           {loadedId !== photo.id && <div aria-hidden="true" className="skeleton absolute inset-0 opacity-20" />}
           <Image
             key={photo.id}
-            src={publicUrl(photo.storage_path)}
+            src={photoSrc(photo)}
             alt={prompt ? `${prompt.label} — photo by ${name}` : `Photo by ${name}`}
             fill
             sizes="(min-width: 768px) 560px, 100vw"

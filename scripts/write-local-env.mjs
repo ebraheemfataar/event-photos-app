@@ -18,8 +18,9 @@ try {
 
 const url = status.API_URL;
 const anonKey = status.ANON_KEY ?? status.PUBLISHABLE_KEY;
-if (!url || !anonKey) {
-  console.error("Local Supabase status did not include API_URL / ANON_KEY:", Object.keys(status));
+const serviceKey = status.SERVICE_ROLE_KEY ?? status.SECRET_KEY;
+if (!url || !anonKey || !serviceKey) {
+  console.error("Local Supabase status did not include API_URL / ANON_KEY / SERVICE_ROLE_KEY:", Object.keys(status));
   process.exit(1);
 }
 
@@ -30,6 +31,8 @@ writeFileSync(
     "# Delete this file to point `npm run dev` back at the hosted project.",
     `NEXT_PUBLIC_SUPABASE_URL=${url}`,
     `NEXT_PUBLIC_SUPABASE_ANON_KEY=${anonKey}`,
+    "# Server-only (lib/supabase/server.ts). The local stack's built-in key, not a real secret.",
+    `SUPABASE_SERVICE_ROLE_KEY=${serviceKey}`,
     "",
   ].join("\n")
 );

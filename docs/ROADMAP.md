@@ -10,8 +10,8 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 |---|---|---|---|
 | 0 | MVP: create event, QR, upload, live gallery | ✅ Shipped | — |
 | 1 | V3 visual redesign + demo + local DB | ✅ Shipped (`d3af8e1`) | — |
-| **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) | 🔧 Built locally — apply `0005` to prod | S |
-| **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | ⏭️ Next | M |
+| **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) + GIFs | ✅ Shipped (`05faee2`, migrations 0005–0006) | S |
+| **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | 🔧 Built on `security-2b` — ship with `0007` | M |
 | **2c** | **Upload limits + guests delete their own** | Planned | M |
 | 3 | Host photo delete | Planned | S |
 | 4 | Privacy extras: consent, storage cleanup, retention | Planned | S–M |
@@ -75,18 +75,22 @@ Not covered (by design, see 2c): Storage trusts the declared content type, so a 
 
 **To ship:** run `0005`, then `0006`, in the Supabase SQL editor (safe any time; neither breaks the live app), then deploy.
 
-### Phase 2b — Stop enumeration · Size M · the important one
+### Phase 2b — Stop enumeration · Size M · 🔧 built on `security-2b`, verified locally
 
-Goal: you can only see an event's photos if you know that event's id (i.e. you have the link) — enforced by the database/server, not the UI.
+Goal: you can only see an event's photos if you know that event's id (i.e. you have the link), enforced by the server, not the UI.
 
-- **Remove the open anon `select` policies** on `events` and `photos`.
-- **Read on the server.** The `/e/[id]` and `/host/[id]` server components fetch the event and its photos with a **server-only** Supabase key (`SUPABASE_SERVICE_ROLE_KEY`, never `NEXT_PUBLIC_`), scoped to the id in the URL. (This relaxes the "no backend" rule: server components already run on Vercel; only reads move there. Writes still go through RLS/RPCs.)
-- **Private bucket + signed URLs.** Make `event-photos` private; the server signs short-lived URLs (e.g. 1 h) for the photos it returns. New uploads get a signed URL the same way when they arrive live.
-- **Scoped realtime.** `postgres_changes` delivery depends on anon `select`, so switch to Realtime **Broadcast**: a DB trigger on `photos` insert/delete calls `realtime.send(...)` to a topic named after the event id. Only clients that know the id subscribe.
-- `next.config.ts`: allow the signed-URL path (`/storage/v1/object/sign/**`) for `next/image`.
-- Build and test against the local stack first (`npm run db:start`), then apply to production with the same short-window process used for 0003.
+- ✅ `0007_lock_down_reads.sql`: anon has no SELECT on `events` / `photos`; insert policies use a SECURITY DEFINER `event_is_active()` helper; bucket is private; photos removed from `postgres_changes`; `broadcast_photo_change` trigger added.
+- ✅ **Reads on the server** with a server-only service-role key (`lib/supabase/server.ts`, `lib/data.ts`), always scoped to the id in the URL. This ends the strict "no backend" setup for reads; writes still go through RLS / RPCs.
+- ✅ **Photos served by `/photos/<photo id>`** (`app/photos/[photoId]/route.ts`) instead of the signed URLs planned here. Signed URLs change on every page load, which defeats the image cache and would burn Vercel's 5K/month optimisation allowance; a stable URL caches for an hour, still needs the unguessable photo id, and stops working when the photo is deleted. Responses send `nosniff` and only image content types.
+- ✅ **Live updates via Broadcast**: the trigger sends only `{id}` on `event:<event id>`; the album verifies each message with a Server Function before changing anything, so forged broadcasts (anyone can send on a public channel) do nothing. Deletes now arrive live too (ready for Phase 3).
+- ✅ `tests/security.spec.ts`: unfiltered anon reads return nothing; the public storage URL fails and anon can't sign links; `/photos/<id>` serves until the host deletes it, then 404; forged insert/delete broadcasts are ignored while real ones arrive; host/guest pages still work. All E2E tests pass 3× in a row.
 
-**Done when:** an unfiltered `GET /rest/v1/photos` and `/events` with the anon key return nothing; a photo URL stops working after it expires; live uploads still appear instantly.
+**To ship** (breaks the old code, so do it in one short window like 0003):
+1. Vercel → Settings → Environment Variables: add `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API keys → `service_role` / secret key), **Sensitive**, Production + Preview.
+2. Push `security-2b`, wait for its preview deployment to be Ready.
+3. Run `0007_lock_down_reads.sql` in the Supabase SQL editor (the live site's albums break until step 5).
+4. Test the preview: create an event, upload from a second window (appears live), view-only link, `/demo`.
+5. Merge to `main`.
 
 ### Phase 2c — Upload limits + delete own · Size M
 
@@ -182,7 +186,8 @@ Board: *Event location*, handoff column 03.
 
 ## Backlog / tech debt
 
-- **Tests:** none yet beyond 2a's EXIF check. Next: the RPCs (create / host check / delete) and a Playwright smoke test (create → upload → appears live).
+- **Tests:** EXIF (always), plus opt-in E2E uploads and security checks against the local stack. Missing: an E2E test of creating an event through the landing page; running the E2E suite in CI.
+- **Not-found pages return HTTP 200**, not 404, for unknown album ids: `loading.tsx` streams the page before the lookup finishes. Visitors see the right page; crawlers and monitoring see the wrong status. Fix by looking up the event before streaming (or dropping `loading.tsx` for those routes).
 - **Hosted migrations are applied by hand.** Consider `npx supabase link` + `db push` so the dashboard tracks them.
 - **Event fields** the design assumes but the DB lacks: date, note for guests, cover photo, custom handle (today the handle comes from the name and the cover is the first photo).
 - **Upload composer polish:** preview of picked photos, one prompt for the batch, posting progress in the feed (*Upload composer*).

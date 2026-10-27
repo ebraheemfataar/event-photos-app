@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Photo } from "@/lib/types";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
 import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
@@ -72,11 +72,6 @@ export default function EventAlbum({
   const canUpload = mode === "guest";
   const handle = eventHandle(eventName);
 
-  // Mock / seed photos store a full https URL; real uploads store a storage path.
-  const publicUrl = (path: string) =>
-    path.startsWith("https://")
-      ? path
-      : createSupabaseClient().storage.from("event-photos").getPublicUrl(path).data.publicUrl;
 
   const guestCount = useMemo(
     () => new Set(photos.map((p) => p.guest_name?.trim().toLowerCase()).filter(Boolean)).size,
@@ -287,7 +282,7 @@ export default function EventAlbum({
           {/* Profile — mobile */}
           <section className="px-[18px] pt-1 lg:hidden">
             <div className="flex items-center gap-[22px]">
-              <Cover photo={cover} live={isActive} size={88} publicUrl={publicUrl} />
+              <Cover photo={cover} live={isActive} size={88} />
               <dl className="grid flex-1 grid-cols-3 text-center">
                 <Stat label="Photos">{photos.length}</Stat>
                 <Stat label="Guests">{guestCount}</Stat>
@@ -301,7 +296,7 @@ export default function EventAlbum({
 
           {/* Profile — desktop */}
           <section className="hidden items-center gap-14 px-8 pt-9 lg:flex xl:gap-[72px] xl:px-10">
-            <Cover photo={cover} live={isActive} size={150} publicUrl={publicUrl} />
+            <Cover photo={cover} live={isActive} size={150} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="mr-2.5 max-w-full truncate text-[22px] font-medium tracking-[-0.02em]">{handle}</h1>
@@ -386,9 +381,9 @@ export default function EventAlbum({
                 onInvite={goToInvite}
               />
             ) : view === "grid" ? (
-              <GridView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} publicUrl={publicUrl} />
+              <GridView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} />
             ) : (
-              <FeedView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} publicUrl={publicUrl} />
+              <FeedView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} />
             )}
           </div>
         </main>
@@ -466,7 +461,7 @@ export default function EventAlbum({
           index={openIndex}
           onIndexChange={(i) => setOpenId(visible[i].id)}
           onClose={() => setOpenId(null)}
-          publicUrl={publicUrl}
+         
         />
       )}
 
@@ -489,12 +484,10 @@ function Cover({
   photo,
   live,
   size,
-  publicUrl,
 }: {
   photo: Photo | undefined;
   live: boolean;
   size: number;
-  publicUrl: (path: string) => string;
 }) {
   const pad = size > 100 ? 4 : 3;
   return (
@@ -507,7 +500,7 @@ function Cover({
         style={{ border: `${size > 100 ? 5 : 3}px solid var(--bg)` }}
       >
         {photo ? (
-          <Image src={publicUrl(photo.storage_path)} alt="" fill sizes={`${size}px`} className="object-cover" />
+          <Image src={photoSrc(photo)} alt="" fill sizes={`${size}px`} className="object-cover" />
         ) : (
           <CameraIcon size={size / 3} strokeWidth={1.8} />
         )}

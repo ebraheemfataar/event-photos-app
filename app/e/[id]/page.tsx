@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { createSupabaseClient } from "@/lib/supabase/client";
-import type { Event, Photo } from "@/lib/types";
+import { getEvent, getEventPhotos } from "@/lib/data";
 import PhotoGallery from "@/components/PhotoGallery";
 
 export default async function GuestPage({
@@ -10,27 +9,15 @@ export default async function GuestPage({
 }) {
   const { id } = await params;
 
-  const supabase = createSupabaseClient();
-
-  const { data: event } = await supabase
-    .from("events")
-    .select("id, name, is_active, created_at")
-    .eq("id", id)
-    .single<Event>();
-
+  const event = await getEvent(id);
   if (!event || !event.is_active) notFound();
 
-  const { data: photos } = await supabase
-    .from("photos")
-    .select("*")
-    .eq("event_id", id)
-    .order("created_at", { ascending: false })
-    .returns<Photo[]>();
+  const photos = await getEventPhotos(event.id);
 
   return (
     <PhotoGallery
       eventId={event.id}
-      initialPhotos={photos ?? []}
+      initialPhotos={photos}
       eventName={event.name}
       isActive={event.is_active}
       createdAt={event.created_at}

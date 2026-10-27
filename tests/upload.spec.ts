@@ -1,13 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { BASE, SEED_EVENT, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
-// End-to-end upload through the real guest page. Opt-in, because it needs the
+// End-to-end uploads through the real guest page. Opt-in, because it needs the
 // local stack and dev server running:
 //   npm run db:start && npm run db:env && npm run dev
 //   E2E_BASE_URL=http://localhost:3000 npm test
 // Uses the seeded event from supabase/seed.sql. Never point this at production.
-
-const BASE = process.env.E2E_BASE_URL;
-const SEED_EVENT = "00000000-0000-4000-8000-000000000001";
 
 test.skip(!BASE, "set E2E_BASE_URL to run end-to-end tests");
 
@@ -17,17 +15,7 @@ test("guest upload works and never loads code from a CDN", async ({ page }) => {
     if (r.url().includes("cdn.jsdelivr.net")) cdnRequests.push(r.url());
   });
 
-  // Wait for the album's realtime subscription before uploading; on a cold
-  // dev server the page can still be compiling when the upload finishes.
-  const subscribed = new Promise<void>((resolve) => {
-    page.on("websocket", (ws) => {
-      if (!ws.url().includes("/realtime/")) return;
-      ws.on("framereceived", (f) => {
-        if (String(f.payload).includes("Subscribed to PostgreSQL")) resolve();
-      });
-    });
-  });
-
+  const subscribed = waitForAlbumSubscription(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${BASE}/e/${SEED_EVENT}`);
   await subscribed;
@@ -35,23 +23,11 @@ test("guest upload works and never loads code from a CDN", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add photos" }).first().click();
   await page.getByPlaceholder("optional").fill(name);
-
-  // Build a real JPEG in the page and hand it to the library input.
-  const jpeg = await page.evaluate(async () => {
-    const c = document.createElement("canvas");
-    c.width = 1200;
-    c.height = 900;
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#FF5A1F";
-    ctx.fillRect(0, 0, 1200, 900);
-    const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/jpeg", 0.9));
-    return Array.from(new Uint8Array(await blob.arrayBuffer()));
-  });
   await page
     .locator('input[type="file"][multiple]')
-    .setInputFiles({ name: "e2e.jpg", mimeType: "image/jpeg", buffer: Buffer.from(jpeg) });
+    .setInputFiles({ name: "e2e.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(page) });
 
-  // Sheet closes and the success toast shows; the photo arrives via realtime.
+  // Sheet closes and the success toast shows; the photo arrives live.
   await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Feed" }).first().click();
   await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
@@ -79,16 +55,7 @@ function twoFrameGif(): Buffer {
 
 test("animated GIF uploads unchanged and stays animated", async ({ page }) => {
   const gif = twoFrameGif();
-
-  const subscribed = new Promise<void>((resolve) => {
-    page.on("websocket", (ws) => {
-      if (!ws.url().includes("/realtime/")) return;
-      ws.on("framereceived", (f) => {
-        if (String(f.payload).includes("Subscribed to PostgreSQL")) resolve();
-      });
-    });
-  });
-
+  const subscribed = waitForAlbumSubscription(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${BASE}/e/${SEED_EVENT}`);
   await subscribed;

@@ -4,13 +4,13 @@ import { useState } from "react";
 import Image from "next/image";
 import type { Photo } from "@/lib/types";
 import { getPromptById } from "@/lib/prompts";
+import { photoSrc } from "@/lib/photoSrc";
 import { avatarSwatch, initialOf, promptSwatch, timeAgo } from "@/lib/display";
 
 type Common = {
   photos: Photo[];
   freshIds: Set<string>;
   onOpen: (index: number) => void;
-  publicUrl: (path: string) => string;
 };
 
 function altFor(photo: Photo) {
@@ -36,7 +36,7 @@ function LoadingImage({ src, alt, sizes }: { src: string; alt: string; sizes: st
 }
 
 /** 3-column, 4:5 tiles, 2px gap, edge to edge on mobile. */
-export function GridView({ photos, freshIds, onOpen, publicUrl }: Common) {
+export function GridView({ photos, freshIds, onOpen }: Common) {
   return (
     <div className="grid grid-cols-3 gap-0.5 lg:gap-1">
       {photos.map((photo, i) => {
@@ -45,13 +45,14 @@ export function GridView({ photos, freshIds, onOpen, publicUrl }: Common) {
         return (
           <button
             key={photo.id}
+            data-photo-id={photo.id}
             type="button"
             onClick={() => onOpen(i)}
             aria-label={`Open ${altFor(photo).toLowerCase()}${prompt ? `, ${prompt.label}` : ""}`}
             className={`group relative aspect-[4/5] overflow-hidden bg-surface-2 lg:rounded-md ${fresh ? "arrive" : ""}`}
           >
             <LoadingImage
-              src={publicUrl(photo.storage_path)}
+              src={photoSrc(photo)}
               alt={altFor(photo)}
               sizes="(min-width: 1024px) 300px, 33vw"
             />
@@ -77,14 +78,14 @@ export function GridView({ photos, freshIds, onOpen, publicUrl }: Common) {
 }
 
 /** Full-width posts: avatar initial, name, time, prompt pill, photo. */
-export function FeedView({ photos, freshIds, onOpen, publicUrl }: Common) {
+export function FeedView({ photos, freshIds, onOpen }: Common) {
   return (
     <div className="mx-auto flex w-full max-w-[470px] flex-col gap-3 pt-2.5 lg:gap-6">
       {photos.map((photo, i) => {
         const prompt = getPromptById(photo.prompt_id);
         const avatar = avatarSwatch(photo.guest_name);
         return (
-          <article key={photo.id} className={freshIds.has(photo.id) ? "arrive" : ""}>
+          <article key={photo.id} data-photo-id={photo.id} className={freshIds.has(photo.id) ? "arrive" : ""}>
             <div className="flex h-[52px] items-center gap-2.5 px-3.5 lg:px-0">
               <span
                 aria-hidden="true"
@@ -119,7 +120,7 @@ export function FeedView({ photos, freshIds, onOpen, publicUrl }: Common) {
               className="relative block aspect-[4/5] w-full cursor-zoom-in overflow-hidden bg-surface-2 lg:rounded-lg"
             >
               <LoadingImage
-                src={publicUrl(photo.storage_path)}
+                src={photoSrc(photo)}
                 alt={altFor(photo)}
                 sizes="(min-width: 1024px) 470px, 100vw"
               />

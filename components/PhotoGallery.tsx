@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { fetchEventPhoto } from "@/lib/photoActions";
 import type { Photo } from "@/lib/types";
 import EventAlbum, { type EventAlbumProps } from "./EventAlbum";
 
@@ -18,24 +19,31 @@ export default function PhotoGallery({
   const [initialPhotoIds] = useState(() => new Set(initialPhotos.map((p) => p.id)));
 
   useEffect(() => {
+    // A database trigger (0007_lock_down_reads.sql) broadcasts only the photo
+    // id on `event:<id>`. Anyone can send on a public channel, so every
+    // message is checked with the server before the album changes.
     const supabase = createSupabaseClient();
+    const idOf = (payload: unknown) => {
+      const id = (payload as { payload?: { id?: unknown } })?.payload?.id;
+      return typeof id === "string" ? id : null;
+    };
+
     const channel = supabase
-      .channel(`event-${eventId}-photos`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "photos",
-          filter: `event_id=eq.${eventId}`,
-        },
-        (payload) => {
-          const newPhoto = payload.new as Photo;
-          setPhotos((prev) =>
-            prev.some((p) => p.id === newPhoto.id) ? prev : [newPhoto, ...prev]
-          );
-        }
-      )
+      .channel(`event:${eventId}`)
+      .on("broadcast", { event: "photo_inserted" }, async (message) => {
+        const id = idOf(message);
+        if (!id) return;
+        const photo = await fetchEventPhoto(eventId, id);
+        if (!photo) return;
+        setPhotos((prev) => (prev.some((p) => p.id === photo.id) ? prev : [photo, ...prev]));
+      })
+      .on("broadcast", { event: "photo_deleted" }, async (message) => {
+        const id = idOf(message);
+        if (!id) return;
+        // Only drop it if the server confirms it's really gone.
+        if (await fetchEventPhoto(eventId, id)) return;
+        setPhotos((prev) => prev.filter((p) => p.id !== id));
+      })
       .subscribe();
 
     return () => {
