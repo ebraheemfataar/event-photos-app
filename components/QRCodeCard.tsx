@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
-import { ArrowRightIcon, DownloadIcon, LinkIcon, ShareIcon } from "@/components/icons";
+import TableTent from "@/components/TableTent";
+import { ArrowRightIcon, DownloadIcon, LinkIcon, PrinterIcon, ShareIcon } from "@/components/icons";
 
 /** The printable "table card". Its colours come from the event theme's
  * --card-* variables, which stay light in dark mode (it gets printed). */
@@ -54,6 +55,29 @@ export default function QRCodeCard({
   split?: boolean;
 }) {
   const canvasWrapRef = useRef<HTMLDivElement>(null);
+  // Each click bumps `n`; the tent is mounted (print-only) and printed once
+  // its fonts are ready. `theme` is read from the album at click time.
+  const [tent, setTent] = useState<{ n: number; theme: string } | null>(null);
+
+  useEffect(() => {
+    if (!tent) return;
+    let cancelled = false;
+    // Unmount after printing, so only one tent is ever in the page.
+    const done = () => setTent(null);
+    window.addEventListener("afterprint", done, { once: true });
+    document.fonts.ready.then(() => {
+      if (!cancelled) requestAnimationFrame(() => window.print());
+    });
+    return () => {
+      cancelled = true;
+      window.removeEventListener("afterprint", done);
+    };
+  }, [tent]);
+
+  function handlePrint() {
+    const theme = canvasWrapRef.current?.closest("[data-theme]")?.getAttribute("data-theme") ?? "classic";
+    setTent((t) => ({ n: (t?.n ?? 0) + 1, theme }));
+  }
 
   async function handleCopy() {
     if (!guestUrl) return;
@@ -189,7 +213,20 @@ export default function QRCodeCard({
             Share
           </button>
         </div>
+        <button
+          type="button"
+          onClick={handlePrint}
+          disabled={!guestUrl}
+          className="flex min-h-[52px] items-center gap-3 rounded-[20px] border border-dashed border-line-strong px-4 py-2.5 text-left transition-colors hover:bg-surface-3 disabled:opacity-50"
+        >
+          <PrinterIcon size={20} className="shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold">Print table card</span>
+            <span className="block text-xs text-ink-3">A4 · fold in half and stand it on each table</span>
+          </span>
+        </button>
       </div>
+      {tent && guestUrl && <TableTent key={tent.n} eventName={eventName} guestUrl={guestUrl} theme={tent.theme} />}
     </div>
   );
 }

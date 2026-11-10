@@ -63,7 +63,7 @@ export default function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="sheet-in relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] bg-bg px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:max-w-md md:rounded-[28px] md:border md:border-line md:px-5 md:pb-6"
+        className="sheet-in relative no-scrollbar max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-[28px] bg-bg px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2 md:max-w-md md:rounded-[28px] md:border md:border-line md:px-5 md:pb-6"
       >
         <div aria-hidden="true" className="mx-auto h-[5px] w-10 rounded-full bg-line-strong md:hidden" />
         <div className="flex h-[52px] items-center justify-between">

@@ -432,6 +432,184 @@ body {
   to { opacity: 1; transform: none; }
 }
 
+/* Profile picture "droplet": every 10 s the picture dips like a drop landing
+   and two rings ripple out in the theme accent, to invite a tap. The motion
+   is the first ~15% of the cycle; the rest is still. */
+.droplet::before,
+.droplet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: ripple 10s cubic-bezier(0.2, 0.6, 0.35, 1) 2s infinite;
+}
+.droplet::after {
+  animation-delay: 2.35s;
+}
+.droplet > .droplet-body {
+  animation: drop 10s ease-out 2s infinite;
+}
+@keyframes ripple {
+  0% { opacity: 0; transform: scale(1); }
+  1% { opacity: 0.7; transform: scale(1); }
+  15% { opacity: 0; transform: scale(1.45); }
+  100% { opacity: 0; transform: scale(1.45); }
+}
+@keyframes drop {
+  0% { transform: scale(1); }
+  2% { transform: scale(0.93); }
+  5% { transform: scale(1.04); }
+  8% { transform: scale(0.99); }
+  10%, 100% { transform: scale(1); }
+}
+
+/* Printable A4 table tent (components/TableTent.tsx). Fold along the middle;
+   the top half is upside down so both faces read correctly when standing. */
+.print-root {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+  .print-root {
+    display: block;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+.tent-page {
+  width: 210mm;
+  height: 296mm; /* a hair under 297 so no blank second page */
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+.tent-half {
+  flex: 1;
+  padding: 9mm;
+  display: flex;
+}
+.tent-flip {
+  transform: rotate(180deg);
+}
+.tent-fold {
+  position: relative;
+  height: 0;
+  border-top: 0.3mm dashed #b5b5b5;
+}
+.tent-fold span {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  padding: 0 3mm;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 6.5pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a9a9a;
+}
+.tent-face {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 11mm;
+  padding: 10mm 12mm;
+  border-radius: 7mm;
+  border: 0.3mm solid color-mix(in srgb, var(--card-ink) 14%, transparent);
+  background: var(--card-bg);
+  color: var(--card-ink);
+}
+.tent-qr {
+  position: relative;
+  flex-shrink: 0;
+  width: 72mm;
+  height: 72mm;
+  padding: 6mm;
+  border-radius: 4mm;
+  background: #fff;
+  color: #0e0e10;
+}
+.tent-corner {
+  position: absolute;
+  width: 9mm;
+  height: 9mm;
+  border: 0 solid var(--card-strip);
+}
+.tent-corner.tl { top: 0; left: 0; border-top-width: 1.1mm; border-left-width: 1.1mm; border-top-left-radius: 4mm; }
+.tent-corner.tr { top: 0; right: 0; border-top-width: 1.1mm; border-right-width: 1.1mm; border-top-right-radius: 4mm; }
+.tent-corner.bl { bottom: 0; left: 0; border-bottom-width: 1.1mm; border-left-width: 1.1mm; border-bottom-left-radius: 4mm; }
+.tent-corner.br { bottom: 0; right: 0; border-bottom-width: 1.1mm; border-right-width: 1.1mm; border-bottom-right-radius: 4mm; }
+.tent-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.tent-eyebrow {
+  font-size: 7.5pt;
+  color: var(--card-muted);
+}
+.tent-title {
+  margin-top: 2.5mm;
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+}
+.tent-sub {
+  margin-top: 2.5mm;
+  font-size: 10.5pt;
+  line-height: 1.35;
+  color: var(--card-muted);
+}
+.tent-steps {
+  margin-top: 5mm;
+  display: flex;
+  flex-direction: column;
+  gap: 2.2mm;
+  font-size: 10pt;
+  font-weight: 500;
+}
+.tent-steps li {
+  display: flex;
+  align-items: center;
+  gap: 2.5mm;
+}
+.tent-steps b {
+  width: 5.5mm;
+  height: 5.5mm;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--card-strip);
+  color: var(--card-strip-ink);
+  font-size: 7.5pt;
+}
+.tent-pill {
+  margin-top: 6mm;
+  align-self: flex-start;
+  padding: 2mm 4.5mm;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--card-ink) 7%, transparent);
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

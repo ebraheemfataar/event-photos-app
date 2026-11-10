@@ -5,7 +5,8 @@ import type { Photo } from "@/lib/types";
 import EventAlbum, { type AlbumMode } from "./EventAlbum";
 import Sheet from "./Sheet";
 import ThemePicker from "./ThemePicker";
-import { DEMO_EVENT_ID, DEMO_EVENT_NAME } from "@/lib/demoPhotos";
+import { demoEvent } from "@/lib/demoPhotos";
+import type { ValidDetails } from "@/lib/eventDetails";
 import { THEMES, themeName, type ThemeId } from "@/lib/themes";
 
 /** Static mock album — no Supabase, no realtime. Host removals only change
@@ -37,21 +38,27 @@ export default function DemoAlbum({
   }
 
   const swatches = THEMES.find((t) => t.id === theme)?.swatches ?? [];
+  const [baseEvent, setBaseEvent] = useState(() =>
+    demoEvent(initialPhotos[initialPhotos.length - 1]?.created_at ?? new Date().toISOString())
+  );
+
+  function applyDetails(details: ValidDetails) {
+    const { theme: nextTheme, ...rest } = details;
+    setBaseEvent((e) => ({ ...e, ...rest }));
+    chooseTheme(nextTheme);
+  }
 
   return (
     <>
       <EventAlbum
         demo
-        eventId={DEMO_EVENT_ID}
-        eventName={DEMO_EVENT_NAME}
-        isActive
-        createdAt={initialPhotos[initialPhotos.length - 1]?.created_at ?? new Date().toISOString()}
+        event={{ ...baseEvent, theme }}
         photos={photos}
         initialPhotoIds={initialPhotoIds}
         mode={mode}
         guestUrl={guestUrl}
-        theme={theme}
         onPhotoRemoved={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
+        onDemoEdit={applyDetails}
       />
 
       <div data-theme={theme}>

@@ -4,7 +4,11 @@ const nextConfig: NextConfig = {
   images: {
     // Uploaded photos: served from the private bucket by
     // app/photos/[photoId]/route.ts (no query string allowed).
-    localPatterns: [{ pathname: "/photos/**", search: "" }],
+    localPatterns: [
+      { pathname: "/photos/**", search: "" },
+      // Event cover / poster: app/media/[eventId]/[kind]/[file]/route.ts
+      { pathname: "/media/**", search: "" },
+    ],
     remotePatterns: [
       // Mock photos for /demo, the landing page and the local seed (lib/demoPhotos.ts).
       {

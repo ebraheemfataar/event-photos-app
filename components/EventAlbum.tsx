@@ -3,11 +3,15 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import type { Photo } from "@/lib/types";
+import type { Event, Photo } from "@/lib/types";
+import { formatEventDate, type ValidDetails } from "@/lib/eventDetails";
+import EventCover from "@/components/EventCover";
+import EventInfoSheet from "@/components/EventInfoSheet";
+import EditEventSheet from "@/components/EditEventSheet";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import { DEFAULT_THEME, type ThemeId } from "@/lib/themes";
+import { DEFAULT_THEME } from "@/lib/themes";
 import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
 import QRCodeCard from "@/components/QRCodeCard";
@@ -22,9 +26,11 @@ import {
   CameraIcon,
   FeedIcon,
   GridIcon,
+  ImagesIcon,
   LockIcon,
   LogoIcon,
   PlusIcon,
+  PencilIcon,
   QrIcon,
   ShareIcon,
   TrashIcon,
@@ -33,10 +39,8 @@ import {
 export type AlbumMode = "guest" | "host" | "viewer";
 
 export type EventAlbumProps = {
-  eventId: string;
-  eventName: string;
-  isActive: boolean;
-  createdAt: string;
+  /** The event, including its details (theme, date, note, cover, poster, links). */
+  event: Event;
   photos: Photo[];
   initialPhotoIds: Set<string>;
   /** guest = can upload; host = valid ?t= token; viewer = host URL without a valid token. */
@@ -49,19 +53,15 @@ export type EventAlbumProps = {
   hostToken?: string;
   /** Drop a photo from the album state after the host removed it. */
   onPhotoRemoved?: (photoId: string) => void;
-  /** Event theme (lib/themes.ts); sets data-theme on the album root. */
-  theme?: ThemeId;
+  /** /demo only: apply edited event details to the page. */
+  onDemoEdit?: (details: ValidDetails) => void;
 };
 
 type View = "grid" | "feed";
 
-const LIVE_RING = "var(--live-ring)";
 
 export default function EventAlbum({
-  eventId,
-  eventName,
-  isActive,
-  createdAt,
+  event,
   photos,
   initialPhotoIds,
   mode,
@@ -69,8 +69,10 @@ export default function EventAlbum({
   demo = false,
   hostToken,
   onPhotoRemoved,
-  theme = DEFAULT_THEME,
+  onDemoEdit,
 }: EventAlbumProps) {
+  const { id: eventId, name: eventName, is_active: isActive, created_at: createdAt } = event;
+  const theme = event.theme ?? DEFAULT_THEME;
   const [view, setView] = useState<View>("grid");
   const [filter, setFilter] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -82,10 +84,27 @@ export default function EventAlbum({
 
   const [removeTarget, setRemoveTarget] = useState<Photo | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const isHost = mode === "host";
   const canUpload = mode === "guest";
   const canRemove = isHost && Boolean(onPhotoRemoved) && (demo || Boolean(hostToken));
+  const canEdit = isHost && !demo && Boolean(hostToken);
+  // The editor also opens on /demo?as=host, saving to that page only.
+  const showEdit = canEdit || (isHost && demo && Boolean(onDemoEdit));
+  // Nudge the host to add a cover until they do (guests see the monogram).
+  const needsCover = canEdit && !event.cover_path;
+  const eventDate = formatEventDate(event.event_date);
+
+  // The profile picture ripples every ~10 s until it's been tapped once.
+  const [coverTapped, setCoverTapped] = useState(false);
+
+  function openCover() {
+    setCoverTapped(true);
+    if (needsCover) setEditOpen(true);
+    else setInfoOpen(true);
+  }
   const handle = eventHandle(eventName);
 
   const guestCount = useMemo(
@@ -108,7 +127,6 @@ export default function EventAlbum({
     [photos, initialPhotoIds]
   );
   const openIndex = openId ? visible.findIndex((p) => p.id === openId) : -1;
-  const cover = photos[photos.length - 1];
 
   function notify(message: string) {
     setToast(message);
@@ -223,6 +241,15 @@ export default function EventAlbum({
           <QrIcon size={18} />
         </button>
       </>
+    ) : showEdit ? (
+      <button
+        type="button"
+        onClick={() => setEditOpen(true)}
+        className="flex h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-line-strong bg-surface px-4 text-sm font-semibold transition-colors hover:bg-surface-3 lg:flex-none"
+      >
+        <PencilIcon size={16} />
+        Edit event
+      </button>
     ) : null;
 
   const subtitle = isHost ? (
@@ -233,7 +260,9 @@ export default function EventAlbum({
       {isActive ? "uploads open" : "uploads closed"}
     </>
   ) : (
-    "Add your photos — they show up live for everyone at the event."
+    [eventDate, event.note || "Add your photos — they show up live for everyone at the event."]
+      .filter(Boolean)
+      .join(" · ")
   );
 
   return (
@@ -268,6 +297,11 @@ export default function EventAlbum({
         {isHost && (
           <SideItem onClick={goToInvite} icon={<QrIcon size={22} />}>
             QR &amp; sharing
+          </SideItem>
+        )}
+        {showEdit && (
+          <SideItem onClick={() => setEditOpen(true)} icon={<PencilIcon size={22} />}>
+            Edit event
           </SideItem>
         )}
         <span className="flex-1" />
@@ -325,7 +359,7 @@ export default function EventAlbum({
           {/* Profile — mobile */}
           <section className="px-[18px] pt-1 lg:hidden">
             <div className="flex items-center gap-[22px]">
-              <Cover photo={cover} live={isActive} size={88} />
+              <EventCover event={event} live={isActive} size={88} showAddHint={needsCover} beckon={!coverTapped} onClick={openCover} />
               <dl className="grid flex-1 grid-cols-3 text-center">
                 <Stat label="Photos">{photos.length}</Stat>
                 <Stat label="Guests">{guestCount}</Stat>
@@ -339,7 +373,7 @@ export default function EventAlbum({
 
           {/* Profile — desktop */}
           <section className="hidden items-center gap-14 px-8 pt-9 lg:flex xl:gap-[72px] xl:px-10">
-            <Cover photo={cover} live={isActive} size={150} />
+            <EventCover event={event} live={isActive} size={150} showAddHint={needsCover} beckon={!coverTapped} onClick={openCover} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="mr-2.5 max-w-full truncate text-[22px] font-medium tracking-[-0.02em]">{handle}</h1>
@@ -363,6 +397,25 @@ export default function EventAlbum({
               <p className="mt-0.5 text-[15px] leading-normal text-ink-2">{subtitle}</p>
             </div>
           </section>
+
+          {needsCover && (
+            <div className="mx-3.5 mt-4 flex items-center gap-3 rounded-[22px] border border-dashed border-line-strong bg-surface p-3.5 lg:mx-8 lg:mt-8 lg:p-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-3">
+                <ImagesIcon size={20} />
+              </span>
+              <p className="min-w-0 flex-1 text-sm leading-snug">
+                <strong className="font-semibold">Add a cover photo or logo.</strong>{" "}
+                <span className="text-ink-2">It&apos;s the first thing guests see, and it shows on WhatsApp link previews.</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="h-11 shrink-0 rounded-full bg-btn px-4 text-sm font-semibold text-btn-ink transition-opacity hover:opacity-90"
+              >
+                Add cover
+              </button>
+            </div>
+          )}
 
           {isHost && (
             <section
@@ -503,6 +556,30 @@ export default function EventAlbum({
         {qrOpen && <QRCodeCard eventName={eventName} guestUrl={resolveGuestUrl()} onNotify={notify} />}
       </Sheet>
 
+      <EventInfoSheet
+        event={event}
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        onEdit={
+          showEdit
+            ? () => {
+                setInfoOpen(false);
+                setEditOpen(true);
+              }
+            : undefined
+        }
+      />
+
+      {editOpen && showEdit && (
+        <EditEventSheet
+          event={event}
+          hostToken={canEdit ? hostToken : undefined}
+          onDemoSave={onDemoEdit}
+          onClose={() => setEditOpen(false)}
+          onSaved={notify}
+        />
+      )}
+
       {openIndex >= 0 && (
         <StoryViewer
           photos={visible}
@@ -562,35 +639,6 @@ export default function EventAlbum({
         )}
       </div>
     </div>
-  );
-}
-
-function Cover({
-  photo,
-  live,
-  size,
-}: {
-  photo: Photo | undefined;
-  live: boolean;
-  size: number;
-}) {
-  const pad = size > 100 ? 4 : 3;
-  return (
-    <span
-      className="block shrink-0 rounded-full"
-      style={{ width: size, height: size, padding: pad, background: live ? LIVE_RING : "var(--line-strong)" }}
-    >
-      <span
-        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-accent text-accent-ink"
-        style={{ border: `${size > 100 ? 5 : 3}px solid var(--bg)` }}
-      >
-        {photo ? (
-          <Image src={photoSrc(photo)} alt="" fill sizes={`${size}px`} className="object-cover" />
-        ) : (
-          <CameraIcon size={size / 3} strokeWidth={1.8} />
-        )}
-      </span>
-    </span>
   );
 }
 

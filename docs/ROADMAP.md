@@ -5,7 +5,7 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 (board names are referenced below in *italics*). How the app works end to end:
 [FLOWS.md](FLOWS.md) (Mermaid process diagrams).
 
-**Live:** https://event-photos-app-six.vercel.app · **Hosted DB migrations applied:** 0001–0007
+**Live:** https://event-photos-app-six.vercel.app · **Hosted DB migrations applied:** 0001–0007 (0008 with the themes release)
 
 | Phase | Theme | Status | Size |
 |---|---|---|---|
@@ -14,18 +14,18 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) + GIFs | ✅ Shipped (`05faee2`, migrations 0005–0006) | S |
 | **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | ✅ Shipped (`0ce1760`, migration 0007) | M |
 | **2c** | **Upload limits + guests delete their own** | Planned | M |
-| 3 | Host photo delete | 🔧 Built on `host-delete` — no migration needed | S |
+| 3 | Host photo delete | ✅ Shipped (`306ed11`) | S |
 | 4 | Privacy extras: consent, storage cleanup, retention | Planned | S–M |
 | 5 | Likes & comments | Planned | M |
 | 6 | Guest access: codes, approval, pass words | Planned | L |
 | 7 | Host accounts, My events, settings, team | Planned | L |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
-| **T** | **Event themes** (Classic, Gold & ivory, Blush, Midnight, Garden) | ⏭️ Next after Phase 3 ships | S–M |
+| **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | 🔧 Built on `themes` (migration 0008) | M |
 | **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | Planned | L |
 | — | Backlog / tech debt | Ongoing | — |
 
-**Build order from here:** ship Phase 3 → **Themes** → **2c** (doubles as
+**Build order from here:** ship **Themes** → **2c** (doubles as
 Monetisation Stage A's enforcement point) → **Monetisation A** (plan columns,
 expiry job) → **Monetisation B** (paid plans, PayFast) → Phase 4 leftovers →
 Phase 5 → Phases 6/7 (unlock Monetisation C) → the rest.
@@ -193,13 +193,13 @@ Board: *Event location*, handoff column 03.
 
 ---
 
-## Event themes · Size S–M
+## Event themes + event details · Size M · 🔧 built on `themes`
 
-Hosts pick a preset when creating the event (changeable later): **Classic** (current look), **Gold & ivory** (weddings; serif headings), **Blush**, **Midnight**, **Garden**.
-- Themes change the frame only: accent colour, background tint, heading font, cover ring, bottom bar and the **printed QR table card**. Photos and the grid stay neutral ("neutral UI, vivid photos").
-- Presets, not a free colour picker, so every theme is contrast-checked in light and dark.
-- `events.theme` + a host-token-checked RPC to change it; the theme overrides the album's CSS variables; the serif font loads only for themes that use it.
-- First step: a theme switcher on `/demo` to choose the look before any database change.
+Hosts pick a preset when creating the event (changeable later): **Sunset Pop** (id `classic`, the original look), **Champagne** (`gold`, weddings; serif headings), **Rosé** (`blush`), **Midnight Gala** (`midnight`), **Garden Party** (`garden`). Names are display-only; ids are stored.
+- Themes change the frame only: accent colour, background tint, heading font, cover ring and the printed QR card / table tent. Photos stay neutral.
+- Presets, not a free colour picker: every theme is contrast-checked in light and dark (`tests/themes.spec.ts`).
+- **Event details** (0008): cover photo / logo (cropped in the browser), poster / invitation, date, note, up to 4 https links, theme. The profile circle shows the cover or a monogram (never a guest photo) and opens an info sheet; hosts get "Edit event" and a nudge to add a cover. Saved through host-token-checked Server Functions (`lib/eventActions.ts`); images served by `/media/...`.
+- **Sharing:** WhatsApp / social link previews per album, noindex on albums and host pages, A4 fold-in-half table tent print.
 
 ## Monetisation
 
@@ -212,10 +212,11 @@ count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md
 
 ## Backlog / tech debt
 
-- **Tests:** EXIF (always), plus opt-in E2E uploads and security checks against the local stack. Missing: an E2E test of creating an event through the landing page; running the E2E suite in CI.
+- **Tests:** EXIF, theme contrast and event-details validation (always), plus opt-in E2E against the local stack. Missing: running the E2E suite in CI.
 - **Not-found pages return HTTP 200**, not 404, for unknown album ids: `loading.tsx` streams the page before the lookup finishes. Visitors see the right page; crawlers and monitoring see the wrong status. Fix by looking up the event before streaming (or dropping `loading.tsx` for those routes).
 - **Hosted migrations are applied by hand.** Consider `npx supabase link` + `db push` so the dashboard tracks them.
-- **Event fields** the design assumes but the DB lacks: date, note for guests, cover photo, custom handle (today the handle comes from the name and the cover is the first photo).
+- **Custom handle:** the album handle still comes from the event name.
+- **Logo:** `app/icon.svg` / `app/apple-icon.tsx` are a placeholder mark; swap for the final logo.
 - **Upload composer polish:** preview of picked photos, one prompt for the batch, posting progress in the feed (*Upload composer*).
 - **Selfie prompt** has no demo photo yet (`lib/demoPhotos.ts`).
 - **Vercel Hobby limits:** 5K image optimisations / month; watch usage once real events run.

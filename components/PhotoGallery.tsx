@@ -7,13 +7,12 @@ import type { Photo } from "@/lib/types";
 import EventAlbum, { type EventAlbumProps } from "./EventAlbum";
 
 export default function PhotoGallery({
-  eventId,
   initialPhotos,
   ...albumProps
 }: {
-  eventId: string;
   initialPhotos: Photo[];
-} & Omit<EventAlbumProps, "eventId" | "photos" | "initialPhotoIds" | "onPhotoRemoved">) {
+} & Omit<EventAlbumProps, "photos" | "initialPhotoIds" | "onPhotoRemoved">) {
+  const eventId = albumProps.event.id;
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos);
   // Photos present on first render; anything else arrived live and animates in.
   const [initialPhotoIds] = useState(() => new Set(initialPhotos.map((p) => p.id)));
@@ -88,7 +87,6 @@ export default function PhotoGallery({
 
   return (
     <EventAlbum
-      eventId={eventId}
       photos={photos}
       initialPhotoIds={initialPhotoIds}
       onPhotoRemoved={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}

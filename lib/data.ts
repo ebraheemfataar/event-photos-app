@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Event, Photo } from "@/lib/types";
 
@@ -14,14 +15,29 @@ export function isUuid(value: unknown): value is string {
 
 const PHOTO_COLUMNS = "id, event_id, storage_path, guest_name, content_type, prompt_id, created_at";
 
-export async function getEvent(eventId: string): Promise<Event | null> {
+export const EVENT_COLUMNS =
+  "id, name, is_active, created_at, theme, event_date, note, cover_path, poster_path, links";
+
+// cache(): the page, its metadata and its link-preview image all read the
+// event in the same request; this makes that one database call.
+export const getEvent = cache(async (eventId: string): Promise<Event | null> => {
   if (!isUuid(eventId)) return null;
   const { data } = await createServiceClient()
     .from("events")
-    .select("id, name, is_active, created_at")
+    .select(EVENT_COLUMNS)
     .eq("id", eventId)
     .maybeSingle<Event>();
   return data;
+});
+
+/** True only if `token` is this event's host token (checked in the DB). */
+export async function isEventHost(eventId: string, token: unknown): Promise<boolean> {
+  if (!isUuid(eventId) || !isUuid(token)) return false;
+  const { data } = await createServiceClient().rpc("is_event_host", {
+    p_event_id: eventId,
+    p_host_token: token,
+  });
+  return data === true;
 }
 
 export async function getEventPhotos(eventId: string): Promise<Photo[]> {

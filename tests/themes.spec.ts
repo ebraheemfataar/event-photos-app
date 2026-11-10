@@ -89,7 +89,7 @@ test("demo theme preview: ?theme= applies, picker switches and updates the URL",
   await expect(album).toHaveAttribute("data-theme", "midnight");
   await expect(page).toHaveURL(/theme=midnight/);
 
-  await page.getByRole("radio", { name: /Classic/ }).click();
+  await page.getByRole("radio", { name: /Sunset Pop/ }).click();
   await expect(album).toHaveAttribute("data-theme", "classic");
   await expect(page).not.toHaveURL(/theme=/);
 

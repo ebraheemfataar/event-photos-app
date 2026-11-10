@@ -1,8 +1,14 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { createServiceClient } from "@/lib/supabase/server";
-import { getEvent, getEventPhotos, isUuid } from "@/lib/data";
+import { getEvent, getEventPhotos, isEventHost } from "@/lib/data";
 import PhotoGallery from "@/components/PhotoGallery";
+
+// Host links carry the token: keep them out of search engines.
+export const metadata: Metadata = {
+  title: "Your album · Snap & Share",
+  robots: { index: false, follow: false },
+};
 
 export default async function HostPage({
   params,
@@ -18,15 +24,8 @@ export default async function HostPage({
   if (!event) notFound();
 
   // The token is checked in the database (is_event_host, 0003) and never read
-  // back. Skip the call for anything that isn't a uuid.
-  let isHost = false;
-  if (isUuid(t)) {
-    const { data } = await createServiceClient().rpc("is_event_host", {
-      p_event_id: event.id,
-      p_host_token: t,
-    });
-    isHost = data === true;
-  }
+  // back; non-uuids are rejected without a call.
+  const isHost = await isEventHost(event.id, t);
 
   const headersList = await headers();
   const host = headersList.get("host");
@@ -39,11 +38,8 @@ export default async function HostPage({
 
   return (
     <PhotoGallery
-      eventId={event.id}
+      event={event}
       initialPhotos={photos}
-      eventName={event.name}
-      isActive={event.is_active}
-      createdAt={event.created_at}
       mode={isHost ? "host" : "viewer"}
       guestUrl={guestUrl}
       hostToken={isHost ? t : undefined}

@@ -1,4 +1,4 @@
-import type { Photo } from "@/lib/types";
+import type { Event, Photo } from "@/lib/types";
 
 // Mock album for /demo and the landing page. Photos are from Unsplash
 // (free to use under the Unsplash License). Every URL shares one query string
@@ -10,6 +10,26 @@ export const UNSPLASH_SEARCH = "?auto=format&fit=crop&w=1600&q=80";
 
 export function unsplash(id: string) {
   return `https://images.unsplash.com/photo-${id}${UNSPLASH_SEARCH}`;
+}
+
+/** The demo event with every detail filled in (cover, poster, note, links),
+ * so /demo shows the whole event-info feature. Links go to example.com. */
+export function demoEvent(createdAt: string): Event {
+  return {
+    id: DEMO_EVENT_ID,
+    name: DEMO_EVENT_NAME,
+    is_active: true,
+    created_at: createdAt,
+    theme: "classic",
+    event_date: "2026-11-14",
+    note: "Snap the speeches, the dance floor and anything that makes you smile. 📸",
+    cover_path: unsplash("1606216794074-735e91aa2c92"),
+    poster_path: unsplash("1519741497674-611481863552"),
+    links: [
+      { label: "Gift registry", url: "https://example.com/registry" },
+      { label: "Our story", url: "https://example.com/our-story" },
+    ],
+  };
 }
 
 /** [unsplash id, guest name, prompt id, minutes ago] — newest first. */

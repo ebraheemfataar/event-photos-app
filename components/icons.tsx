@@ -167,6 +167,21 @@ export const TrashIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const PrinterIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 9V3.5h10V9" />
+    <rect x="3.5" y="9" width="17" height="8" rx="2.5" />
+    <path d="M7 14h10v6.5H7z" />
+  </Svg>
+);
+
+export const PencilIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+    <path d="M13.5 6.5l4 4" />
+  </Svg>
+);
+
 export const AddSquareIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
