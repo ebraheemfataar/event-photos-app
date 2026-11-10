@@ -6,7 +6,7 @@ import type { Photo } from "@/lib/types";
 import { getPromptById } from "@/lib/prompts";
 import { photoSrc } from "@/lib/photoSrc";
 import { avatarSwatch, initialOf, timeAgo } from "@/lib/display";
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@/components/icons";
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, TrashIcon } from "@/components/icons";
 
 const MAX_SEGMENTS = 20;
 
@@ -16,16 +16,27 @@ export default function StoryViewer({
   index,
   onIndexChange,
   onClose,
+  onRemove,
+  paused = false,
 }: {
   photos: Photo[];
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
+  /** Host only: shows a remove button for the current photo. */
+  onRemove?: (photo: Photo) => void;
+  /** True while a dialog (e.g. the remove confirmation) sits on top: the
+   * viewer then ignores keys so Esc/Tab/arrows belong to that dialog. */
+  paused?: boolean;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const pausedRef = useRef(paused);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  useEffect(() => {
+    pausedRef.current = paused;
+  });
 
   const photo = photos[index];
   const total = photos.length;
@@ -47,6 +58,7 @@ export default function StoryViewer({
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
     function handleKeyDown(e: KeyboardEvent) {
+      if (pausedRef.current) return;
       if (e.key === "Escape") nav.current.close();
       if (e.key === "ArrowLeft") nav.current.prev();
       if (e.key === "ArrowRight") nav.current.next();
@@ -159,6 +171,16 @@ export default function StoryViewer({
                 · {timeAgo(photo.created_at)}
               </span>
             </div>
+            {onRemove && (
+              <button
+                type="button"
+                onClick={() => onRemove(photo)}
+                aria-label="Remove photo"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/15"
+              >
+                <TrashIcon size={21} />
+              </button>
+            )}
             <button
               ref={closeRef}
               type="button"

@@ -6,6 +6,7 @@ import type { Photo } from "@/lib/types";
 import { getPromptById } from "@/lib/prompts";
 import { photoSrc } from "@/lib/photoSrc";
 import { avatarSwatch, initialOf, promptSwatch, timeAgo } from "@/lib/display";
+import { TrashIcon } from "@/components/icons";
 
 type Common = {
   photos: Photo[];
@@ -78,7 +79,12 @@ export function GridView({ photos, freshIds, onOpen }: Common) {
 }
 
 /** Full-width posts: avatar initial, name, time, prompt pill, photo. */
-export function FeedView({ photos, freshIds, onOpen }: Common) {
+export function FeedView({
+  photos,
+  freshIds,
+  onOpen,
+  onRemove,
+}: Common & { /** Host only: a remove button on each post. */ onRemove?: (photo: Photo) => void }) {
   return (
     <div className="mx-auto flex w-full max-w-[470px] flex-col gap-3 pt-2.5 lg:gap-6">
       {photos.map((photo, i) => {
@@ -111,6 +117,16 @@ export function FeedView({ photos, freshIds, onOpen }: Common) {
                   </span>
                   <span className="truncate">{prompt.label}</span>
                 </span>
+              )}
+              {onRemove && (
+                <button
+                  type="button"
+                  onClick={() => onRemove(photo)}
+                  aria-label={`Remove ${altFor(photo).toLowerCase()}`}
+                  className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-danger transition-colors hover:bg-danger-bg lg:mr-0"
+                >
+                  <TrashIcon size={19} />
+                </button>
               )}
             </div>
             <button

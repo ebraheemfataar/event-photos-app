@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Photo } from "@/lib/types";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
+import { createSupabaseClient } from "@/lib/supabase/client";
 import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
 import QRCodeCard from "@/components/QRCodeCard";
@@ -25,6 +26,7 @@ import {
   PlusIcon,
   QrIcon,
   ShareIcon,
+  TrashIcon,
 } from "@/components/icons";
 
 export type AlbumMode = "guest" | "host" | "viewer";
@@ -42,6 +44,10 @@ export type EventAlbumProps = {
   guestUrl?: string;
   /** Mock album (/demo): photos are plain URLs and uploading is switched off. */
   demo?: boolean;
+  /** Host page only: the validated ?t= token, sent to delete_event_photo. */
+  hostToken?: string;
+  /** Drop a photo from the album state after the host removed it. */
+  onPhotoRemoved?: (photoId: string) => void;
 };
 
 type View = "grid" | "feed";
@@ -58,6 +64,8 @@ export default function EventAlbum({
   mode,
   guestUrl: guestUrlProp,
   demo = false,
+  hostToken,
+  onPhotoRemoved,
 }: EventAlbumProps) {
   const [view, setView] = useState<View>("grid");
   const [filter, setFilter] = useState<string | null>(null);
@@ -68,10 +76,13 @@ export default function EventAlbum({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
+  const [removeTarget, setRemoveTarget] = useState<Photo | null>(null);
+  const [removing, setRemoving] = useState(false);
+
   const isHost = mode === "host";
   const canUpload = mode === "guest";
+  const canRemove = isHost && Boolean(onPhotoRemoved) && (demo || Boolean(hostToken));
   const handle = eventHandle(eventName);
-
 
   const guestCount = useMemo(
     () => new Set(photos.map((p) => p.guest_name?.trim().toLowerCase()).filter(Boolean)).size,
@@ -99,6 +110,34 @@ export default function EventAlbum({
     setToast(message);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2400);
+  }
+
+  async function removePhoto() {
+    const target = removeTarget;
+    if (!target || !onPhotoRemoved) return;
+    setRemoving(true);
+    if (!demo) {
+      // The database checks the host token (delete_event_photo, 0004); the
+      // trigger from 0007 then tells every open album to drop the photo.
+      const { error } = await createSupabaseClient().rpc("delete_event_photo", {
+        p_photo_id: target.id,
+        p_host_token: hostToken,
+      });
+      if (error) {
+        setRemoving(false);
+        notify("Couldn't remove the photo. Try again.");
+        return;
+      }
+    }
+    // If it was open in the viewer, move on to a neighbouring photo.
+    if (openId === target.id) {
+      const i = visible.findIndex((p) => p.id === target.id);
+      setOpenId(visible[i + 1]?.id ?? visible[i - 1]?.id ?? null);
+    }
+    onPhotoRemoved(target.id);
+    setRemoving(false);
+    setRemoveTarget(null);
+    notify(demo ? "Photo removed (demo only)" : "Photo removed for everyone");
   }
 
   function resolveGuestUrl() {
@@ -383,7 +422,12 @@ export default function EventAlbum({
             ) : view === "grid" ? (
               <GridView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} />
             ) : (
-              <FeedView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} />
+              <FeedView
+                photos={visible}
+                freshIds={freshIds}
+                onOpen={(i) => setOpenId(visible[i].id)}
+                onRemove={canRemove ? setRemoveTarget : undefined}
+              />
             )}
           </div>
         </main>
@@ -461,9 +505,46 @@ export default function EventAlbum({
           index={openIndex}
           onIndexChange={(i) => setOpenId(visible[i].id)}
           onClose={() => setOpenId(null)}
-         
+          onRemove={canRemove ? setRemoveTarget : undefined}
+          paused={removeTarget !== null}
         />
       )}
+
+      {/* Rendered after the story viewer so it sits on top of it. */}
+      <Sheet open={removeTarget !== null} onClose={() => !removing && setRemoveTarget(null)} title="Remove this photo?">
+        {removeTarget && (
+          <div className="pb-1">
+            <div className="flex items-center gap-3 rounded-[18px] border border-line bg-surface p-3">
+              <span className="relative h-16 w-[52px] shrink-0 overflow-hidden rounded-xl bg-surface-2">
+                <Image src={photoSrc(removeTarget)} alt="" fill sizes="52px" className="object-cover" />
+              </span>
+              <div className="min-w-0 text-sm">
+                <div className="truncate font-semibold">{removeTarget.guest_name || "Guest"}&apos;s photo</div>
+                <div className="text-ink-3">It disappears for everyone, straight away. This can&apos;t be undone.</div>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={removePhoto}
+                disabled={removing}
+                className="flex h-14 items-center justify-center gap-2 rounded-full bg-danger text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 dark:text-[#0E0E10]"
+              >
+                <TrashIcon size={18} />
+                {removing ? "Removing…" : "Remove for everyone"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRemoveTarget(null)}
+                disabled={removing}
+                className="flex h-[52px] items-center justify-center rounded-full border border-line-strong bg-surface text-[15px] font-semibold transition-colors hover:bg-surface-3 disabled:opacity-60"
+              >
+                Keep it
+              </button>
+            </div>
+          </div>
+        )}
+      </Sheet>
 
       <div
         role="status"

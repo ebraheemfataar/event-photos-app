@@ -1,4 +1,7 @@
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
+import { expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import type { Page } from "@playwright/test";
 
 export const BASE = process.env.E2E_BASE_URL;
@@ -51,4 +54,23 @@ export async function makeJpeg(page: Page, color = "#FF5A1F"): Promise<Buffer> {
     return Array.from(new Uint8Array(await blob.arrayBuffer()));
   }, color);
   return Buffer.from(bytes);
+}
+
+/** Upload a photo the way the browser does (anon storage upload + anon insert). */
+export async function anonUpload(guestName: string, jpeg: Buffer) {
+  const { url, anonKey } = localEnv();
+  const anon = createClient(url, anonKey);
+  const id = randomUUID();
+  const path = `${SEED_EVENT}/${id}.jpg`;
+  const up = await anon.storage.from("event-photos").upload(path, jpeg, { contentType: "image/jpeg" });
+  expect(up.error, "anon upload still allowed").toBeNull();
+  const ins = await anon.from("photos").insert({
+    id,
+    event_id: SEED_EVENT,
+    storage_path: path,
+    guest_name: guestName,
+    content_type: "image/jpeg",
+  });
+  expect(ins.error, "anon insert still allowed").toBeNull();
+  return { id, path };
 }

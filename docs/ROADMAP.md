@@ -2,25 +2,33 @@
 
 What's shipped, what's next, and the order to build it in. Screen designs for
 every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-spec.html)
-(board names are referenced below in *italics*).
+(board names are referenced below in *italics*). How the app works end to end:
+[FLOWS.md](FLOWS.md) (Mermaid process diagrams).
 
-**Live:** https://event-photos-app-six.vercel.app · **Hosted DB migrations applied:** 0001–0004
+**Live:** https://event-photos-app-six.vercel.app · **Hosted DB migrations applied:** 0001–0007
 
 | Phase | Theme | Status | Size |
 |---|---|---|---|
 | 0 | MVP: create event, QR, upload, live gallery | ✅ Shipped | — |
 | 1 | V3 visual redesign + demo + local DB | ✅ Shipped (`d3af8e1`) | — |
 | **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) + GIFs | ✅ Shipped (`05faee2`, migrations 0005–0006) | S |
-| **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | 🔧 Built on `security-2b` — ship with `0007` | M |
+| **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | ✅ Shipped (`0ce1760`, migration 0007) | M |
 | **2c** | **Upload limits + guests delete their own** | Planned | M |
-| 3 | Host photo delete | Planned | S |
+| 3 | Host photo delete | 🔧 Built on `host-delete` — no migration needed | S |
 | 4 | Privacy extras: consent, storage cleanup, retention | Planned | S–M |
 | 5 | Likes & comments | Planned | M |
 | 6 | Guest access: codes, approval, pass words | Planned | L |
 | 7 | Host accounts, My events, settings, team | Planned | L |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
+| **T** | **Event themes** (Classic, Gold & ivory, Blush, Midnight, Garden) | ⏭️ Next after Phase 3 ships | S–M |
+| **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | Planned | L |
 | — | Backlog / tech debt | Ongoing | — |
+
+**Build order from here:** ship Phase 3 → **Themes** → **2c** (doubles as
+Monetisation Stage A's enforcement point) → **Monetisation A** (plan columns,
+expiry job) → **Monetisation B** (paid plans, PayFast) → Phase 4 leftovers →
+Phase 5 → Phases 6/7 (unlock Monetisation C) → the rest.
 
 **Why security comes first:** the app is live, and the read policies from
 `0001_init.sql` (`using (true)` on `events` and `photos`) plus a public bucket
@@ -75,7 +83,7 @@ Not covered (by design, see 2c): Storage trusts the declared content type, so a 
 
 **To ship:** run `0005`, then `0006`, in the Supabase SQL editor (safe any time; neither breaks the live app), then deploy.
 
-### Phase 2b — Stop enumeration · Size M · 🔧 built on `security-2b`, verified locally
+### Phase 2b — Stop enumeration · Size M · ✅ shipped, verified on production
 
 Goal: you can only see an event's photos if you know that event's id (i.e. you have the link), enforced by the server, not the UI.
 
@@ -103,17 +111,18 @@ Goal: you can only see an event's photos if you know that event's id (i.e. you h
 
 ---
 
-## Phase 3 — Host photo delete · Size S
+## Phase 3 — Host photo delete · Size S · 🔧 built on `host-delete`, verified locally
 
 **Goal:** the host can remove any photo, and it disappears for everyone.
 
-- "Remove photo" button (host only) in the story viewer and on feed posts — *Host tab bar + settings ②*, *Web — photo + comments* (dark/host).
-- Confirm step ("Remove for everyone?").
-- Call `delete_event_photo(photo_id, host_token)` (live since 0004); the token is the `?t=` param already on the page.
-- Every open album drops the photo live (DELETE event — `postgres_changes` today, Broadcast after Phase 2b).
+- ✅ Remove button (host only) in the story viewer header and on each feed post. Guests and wrong-token visitors never see it.
+- ✅ Confirm sheet ("Remove this photo?", photo preview, **Remove for everyone** / **Keep it**); no browser pop-ups. The viewer moves on to the next photo after a removal.
+- ✅ Calls `delete_event_photo(photo_id, host_token)` (live since 0004) with the verified `?t=` token; the 0007 trigger removes it live from every open album, and `/photos/<id>` returns 404.
+- ✅ Works locally on `/demo?as=host` (no database), so it can be tried safely.
+- ✅ Live updates are now verified in batches (one Server Function call per burst, not per photo), so a busy event can't queue up checks.
+- ✅ `tests/host-delete.spec.ts`: host removes from the viewer and it disappears for a guest in another browser; feed remove + "Keep it" cancel; no remove buttons for guests / wrong token; demo removal.
 
-**DB:** none.
-**Done when:** the host removes a photo on one device and it vanishes from a guest's open album without a refresh.
+**DB:** none. **Known limit:** a removed photo can stay in the image cache for up to an hour if someone saved its URL (see `app/photos/[photoId]/route.ts`); the file bytes are only purged in storage by Phase 4's cleanup job.
 
 ## Phase 4 — Privacy extras · Size S–M
 
@@ -183,6 +192,23 @@ Board: *Event location*, handoff column 03.
 - `events.show_location` switch (off = host and team only). Never store guests' GPS.
 
 ---
+
+## Event themes · Size S–M
+
+Hosts pick a preset when creating the event (changeable later): **Classic** (current look), **Gold & ivory** (weddings; serif headings), **Blush**, **Midnight**, **Garden**.
+- Themes change the frame only: accent colour, background tint, heading font, cover ring, bottom bar and the **printed QR table card**. Photos and the grid stay neutral ("neutral UI, vivid photos").
+- Presets, not a free colour picker, so every theme is contrast-checked in light and dark.
+- `events.theme` + a host-token-checked RPC to change it; the theme overrides the album's CSS variables; the serif font loads only for themes that use it.
+- First step: a theme switcher on `/demo` to choose the look before any database change.
+
+## Monetisation
+
+Once-off per-event plans (Free / R149 / R399 / R799) priced by contributor
+count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md):
+- **Stage A — Foundations:** 2c server uploads + guest ids, `events.plan` / `expires_at`, `plans` seed table, daily expiry job + reminders.
+- **Stage B — Paid plans v1:** contributor cap enforced on the server, plan picker + pricing page, upgrade for the difference, `event_purchases`, PayFast checkout with verified ITN only.
+- **Stage C — Needs host accounts (Phase 7):** 3-event pack, returning-host coupon, Pro subscription, co-hosts, own logo.
+- **Stage D — As features are built:** video, full-res, ZIP, slideshow, highlight video, printed card packs.
 
 ## Backlog / tech debt
 

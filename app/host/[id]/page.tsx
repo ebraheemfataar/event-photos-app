@@ -46,6 +46,7 @@ export default async function HostPage({
       createdAt={event.created_at}
       mode={isHost ? "host" : "viewer"}
       guestUrl={guestUrl}
+      hostToken={isHost ? t : undefined}
     />
   );
 }

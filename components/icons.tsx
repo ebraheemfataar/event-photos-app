@@ -161,6 +161,12 @@ export const FeedIcon = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
     </Svg>
   );
 
+export const TrashIcon = (p: IconProps) => (
+  <Svg strokeWidth={2.2} {...p}>
+    <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13" />
+  </Svg>
+);
+
 export const AddSquareIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="3.5" y="3.5" width="17" height="17" rx="5" />

@@ -29,7 +29,7 @@ test("guest upload works and never loads code from a CDN", async ({ page }) => {
 
   // Sheet closes and the success toast shows; the photo arrives live.
   await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "Feed" }).first().click();
+  await page.getByRole("tab", { name: "Feed", exact: true }).click();
   await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
 
   expect(cdnRequests, "compression must use the self-hosted worker").toEqual([]);
@@ -72,7 +72,7 @@ test("animated GIF uploads unchanged and stays animated", async ({ page }) => {
   // no compression on upload and no re-encoding on display, so both frames
   // survive. (Playwright can't read streamed upload bodies, so the round trip
   // is the check.)
-  await page.getByRole("button", { name: "Feed" }).first().click();
+  await page.getByRole("tab", { name: "Feed", exact: true }).click();
   const post = page.locator("article", { hasText: name });
   await expect(post).toBeVisible({ timeout: 15_000 });
   const src = await post.locator("img").last().getAttribute("src");

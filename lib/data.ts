@@ -35,16 +35,17 @@ export async function getEventPhotos(eventId: string): Promise<Photo[]> {
   return data ?? [];
 }
 
-/** One photo, only if it belongs to the given event. */
-export async function getEventPhoto(eventId: string, photoId: string): Promise<Photo | null> {
-  if (!isUuid(eventId) || !isUuid(photoId)) return null;
+/** Several photos at once, only those that exist and belong to the event. */
+export async function getEventPhotosByIds(eventId: string, photoIds: string[]): Promise<Photo[]> {
+  const ids = [...new Set(photoIds)].filter(isUuid).slice(0, 100);
+  if (!isUuid(eventId) || ids.length === 0) return [];
   const { data } = await createServiceClient()
     .from("photos")
     .select(PHOTO_COLUMNS)
-    .eq("id", photoId)
     .eq("event_id", eventId)
-    .maybeSingle<Photo>();
-  return data;
+    .in("id", ids)
+    .returns<Photo[]>();
+  return data ?? [];
 }
 
 /** Storage path + type for serving a photo by id. */

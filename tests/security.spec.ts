@@ -1,31 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { BASE, SEED_EVENT, SEED_HOST_TOKEN, localEnv, makeJpeg, waitForAlbumSubscription } from "./helpers";
+import { BASE, SEED_EVENT, SEED_HOST_TOKEN, anonUpload, localEnv, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
 // Phase 2b (docs/ROADMAP.md, 0007_lock_down_reads.sql). Opt-in like
 // upload.spec.ts: needs the local stack + dev server, E2E_BASE_URL set.
 
 test.skip(!BASE, "set E2E_BASE_URL to run end-to-end tests");
-
-/** Upload a photo the way the browser does (anon storage upload + anon insert). */
-async function anonUpload(guestName: string, jpeg: Buffer) {
-  const { url, anonKey } = localEnv();
-  const anon = createClient(url, anonKey);
-  const id = randomUUID();
-  const path = `${SEED_EVENT}/${id}.jpg`;
-  const up = await anon.storage.from("event-photos").upload(path, jpeg, { contentType: "image/jpeg" });
-  expect(up.error, "anon upload still allowed").toBeNull();
-  const ins = await anon.from("photos").insert({
-    id,
-    event_id: SEED_EVENT,
-    storage_path: path,
-    guest_name: guestName,
-    content_type: "image/jpeg",
-  });
-  expect(ins.error, "anon insert still allowed").toBeNull();
-  return { id, path };
-}
 
 // Other tests upload into the same seed event in parallel, so check specific
 // photos (grid tiles carry data-photo-id), never total counts.
