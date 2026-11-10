@@ -32,7 +32,7 @@ export default function PromptChips({
               <span
                 aria-hidden="true"
                 className="flex h-8 w-8 items-center justify-center rounded-full text-base"
-                style={{ background: swatch.bg }}
+                style={{ background: `var(--prompt-bg, ${swatch.bg})` }}
               >
                 {prompt.emoji}
               </span>

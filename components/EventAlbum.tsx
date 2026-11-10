@@ -7,6 +7,7 @@ import type { Photo } from "@/lib/types";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { DEFAULT_THEME, type ThemeId } from "@/lib/themes";
 import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
 import QRCodeCard from "@/components/QRCodeCard";
@@ -48,11 +49,13 @@ export type EventAlbumProps = {
   hostToken?: string;
   /** Drop a photo from the album state after the host removed it. */
   onPhotoRemoved?: (photoId: string) => void;
+  /** Event theme (lib/themes.ts); sets data-theme on the album root. */
+  theme?: ThemeId;
 };
 
 type View = "grid" | "feed";
 
-const LIVE_RING = "conic-gradient(from 200deg, #FF5A1F, #FFC21A, #FF5A1F 70%, #FFC21A, #FF5A1F)";
+const LIVE_RING = "var(--live-ring)";
 
 export default function EventAlbum({
   eventId,
@@ -66,6 +69,7 @@ export default function EventAlbum({
   demo = false,
   hostToken,
   onPhotoRemoved,
+  theme = DEFAULT_THEME,
 }: EventAlbumProps) {
   const [view, setView] = useState<View>("grid");
   const [filter, setFilter] = useState<string | null>(null);
@@ -233,7 +237,7 @@ export default function EventAlbum({
   );
 
   return (
-    <div className="flex min-h-dvh w-full">
+    <div data-theme={theme} className="flex min-h-dvh w-full bg-bg text-ink">
       {/* Desktop sidebar */}
       <nav
         aria-label="Primary"
@@ -328,7 +332,7 @@ export default function EventAlbum({
                 <Stat label="Status">{statusNode}</Stat>
               </dl>
             </div>
-            <h1 className="mt-3 text-base font-semibold tracking-[-0.02em]">{eventName}</h1>
+            <h1 className="event-title mt-3">{eventName}</h1>
             <p className="mt-0.5 text-sm leading-snug text-ink-2">{subtitle}</p>
             {actions && <div className="mt-3 flex gap-1.5">{actions}</div>}
           </section>
@@ -355,7 +359,7 @@ export default function EventAlbum({
                   <dd>{statusNode}</dd>
                 </div>
               </dl>
-              <div className="mt-4 text-[15px] font-semibold">{eventName}</div>
+              <div className="event-title mt-4">{eventName}</div>
               <p className="mt-0.5 text-[15px] leading-normal text-ink-2">{subtitle}</p>
             </div>
           </section>
@@ -379,8 +383,8 @@ export default function EventAlbum({
               <Highlight
                 label="All"
                 emoji="✦"
-                bg="#1B1B1D"
-                color="#F4F4F2"
+                bg="var(--btn)"
+                color="var(--btn-ink)"
                 pressed={activeFilter === null}
                 onClick={() => setFilter(null)}
               />
@@ -390,7 +394,7 @@ export default function EventAlbum({
                   label={promptShortLabel(p.id, p.label)}
                   title={p.label}
                   emoji={p.emoji}
-                  bg={promptSwatch(p.id).bg}
+                  bg={`var(--prompt-bg, ${promptSwatch(p.id).bg})`}
                   pressed={activeFilter === p.id}
                   onClick={() => setFilter(activeFilter === p.id ? null : p.id)}
                 />
@@ -478,7 +482,7 @@ export default function EventAlbum({
                 className="mt-5 flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink"
               >
                 Create an album
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-[#0E0E10]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
                   <ArrowRightIcon size={18} />
                 </span>
               </Link>
@@ -577,7 +581,7 @@ function Cover({
       style={{ width: size, height: size, padding: pad, background: live ? LIVE_RING : "var(--line-strong)" }}
     >
       <span
-        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-[#FF5A1F] text-[#0E0E10]"
+        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-accent text-accent-ink"
         style={{ border: `${size > 100 ? 5 : 3}px solid var(--bg)` }}
       >
         {photo ? (
@@ -731,8 +735,8 @@ function EmptyState({
   return (
     <div className="px-8 pb-10 pt-12 text-center lg:pt-16">
       <div aria-hidden="true" className="relative mx-auto h-[150px] w-[260px]">
-        <span className="absolute left-1/2 top-5 -ml-28 h-[116px] w-[92px] -rotate-12 rounded-2xl bg-[#2B2BFF]" />
-        <span className="absolute left-1/2 top-5 ml-5 h-[116px] w-[92px] rotate-12 rounded-2xl bg-[#FFC21A]" />
+        <span className="absolute left-1/2 top-5 -ml-28 h-[116px] w-[92px] -rotate-12 rounded-2xl bg-[var(--deco-1)]" />
+        <span className="absolute left-1/2 top-5 ml-5 h-[116px] w-[92px] rotate-12 rounded-2xl bg-[var(--deco-2)]" />
         <span className="absolute left-1/2 top-1.5 -ml-[50px] flex h-32 w-[100px] items-center justify-center rounded-[18px] border-2 border-dashed border-line-strong bg-surface text-ink-2">
           <PlusIcon size={34} strokeWidth={2} />
         </span>
@@ -754,7 +758,7 @@ function EmptyState({
           className="mt-6 inline-flex h-14 items-center gap-3.5 rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98]"
         >
           {mode === "host" ? "Show the guest QR" : "Take the first photo"}
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-[#0E0E10]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
             {mode === "host" ? <ArrowRightIcon size={18} /> : <CameraIcon size={18} strokeWidth={2.2} />}
           </span>
         </button>

@@ -111,7 +111,7 @@ export function FeedView({
                   <span
                     aria-hidden="true"
                     className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-xs"
-                    style={{ background: promptSwatch(prompt.id).bg }}
+                    style={{ background: `var(--prompt-bg, ${promptSwatch(prompt.id).bg})` }}
                   >
                     {prompt.emoji}
                   </span>

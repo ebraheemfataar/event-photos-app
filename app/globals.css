@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Snap & Share V3 — "Gallery" direction. Neutral UI, vivid photos. */
-:root {
+:root, [data-theme="classic"] {
   --bg: #F4F4F2;
   --bg-2: #ECECE9;
   --surface: #FFFFFF;
@@ -31,9 +31,24 @@
   --sh-2: 0 30px 60px -24px rgba(14, 14, 16, 0.22), 0 8px 20px -8px rgba(14, 14, 16, 0.1);
   --glass: rgba(244, 244, 242, 0.78);
   color-scheme: light;
+
+  /* Theme hooks (Classic values). Themes below override these. */
+  --accent-ink: #0E0E10;
+  --live-ring: conic-gradient(from 200deg, #FF5A1F, #FFC21A, #FF5A1F 70%, #FFC21A, #FF5A1F);
+  --deco-1: #2B2BFF;
+  --deco-2: #FFC21A;
+  --font-display: var(--font-geist-sans), system-ui, sans-serif;
+  --hd-weight: 500;
+  --hd-tracking: -0.045em;
+  /* Printed QR table card: same in light and dark mode. */
+  --card-bg: #FFFFFF;
+  --card-ink: #0E0E10;
+  --card-muted: #55555B;
+  --card-strip: #FF5A1F;
+  --card-strip-ink: #0E0E10;
 }
 
-.dark {
+.dark, .dark [data-theme="classic"] {
   --bg: #0C0C0D;
   --bg-2: #111113;
   --surface: #161618;
@@ -63,6 +78,223 @@
   color-scheme: dark;
 }
 
+/* ---------------------------------------------------------------------------
+   Event themes (lib/themes.ts). Set with data-theme on the album root.
+   Each theme has a light block and a `.dark` block; tests/themes.spec.ts
+   checks text contrast for every one. Status colours (live, warn, danger)
+   are inherited from Classic so they keep their meaning everywhere.
+   ------------------------------------------------------------------------- */
+
+[data-theme="gold"] {
+  --bg: #FBF8F2;
+  --bg-2: #F4EFE5;
+  --surface: #FFFFFF;
+  --surface-2: #F6F1E7;
+  --surface-3: #ECE4D4;
+  --line: #E8DFCF;
+  --line-strong: #D6C9B2;
+  --ink: #2A2117;
+  --ink-2: #5E5244;
+  --ink-3: #74675A;
+  --mute: #9A8C77;
+  --btn: #2A2117;
+  --btn-ink: #FBF8F2;
+  --accent: #B8955E;
+  --accent-ink: #2A2117;
+  --ring: 0 0 0 2px #FBF8F2, 0 0 0 4px #2A2117;
+  --glass: rgba(251, 248, 242, 0.8);
+  --live-ring: conic-gradient(from 200deg, #B8955E, #EAD6A6, #B8955E 70%, #EAD6A6, #B8955E);
+  --deco-1: #D9C29A;
+  --deco-2: #EFE3CB;
+  --prompt-bg: #F1E7D4;
+  --font-display: var(--font-serif), Georgia, serif;
+  --hd-weight: 600;
+  --hd-tracking: -0.01em;
+  --font-title: var(--font-serif), Georgia, serif;
+  --title-size: 1.375rem;
+  --title-weight: 700;
+  --title-tracking: 0;
+  --card-bg: #FFFDF8;
+  --card-ink: #2A2117;
+  --card-muted: #74675A;
+  --card-strip: #D9C29A;
+  --card-strip-ink: #2A2117;
+}
+.dark [data-theme="gold"] {
+  --bg: #14110D;
+  --bg-2: #18140F;
+  --surface: #1D1914;
+  --surface-2: #252019;
+  --surface-3: #2E2820;
+  --line: #2E2820;
+  --line-strong: #463D30;
+  --ink: #F5EEDF;
+  --ink-2: #CFC3AE;
+  --ink-3: #A89B85;
+  --mute: #85786A;
+  --btn: #EAD6A6;
+  --btn-ink: #14110D;
+  --accent: #B8955E;
+  --accent-ink: #14110D;
+  --ring: 0 0 0 2px #14110D, 0 0 0 4px #EAD6A6;
+  --glass: rgba(20, 17, 13, 0.8);
+  --prompt-bg: #2E2820;
+}
+
+[data-theme="blush"] {
+  --bg: #FBF3F1;
+  --bg-2: #F6EAE7;
+  --surface: #FFFFFF;
+  --surface-2: #F8ECE9;
+  --surface-3: #F1DFDB;
+  --line: #EED9D4;
+  --line-strong: #E0C1BA;
+  --ink: #2E1B20;
+  --ink-2: #66494E;
+  --ink-3: #7A5C61;
+  --mute: #A28A8E;
+  --btn: #2E1B20;
+  --btn-ink: #FFFFFF;
+  --accent: #E59AA4;
+  --accent-ink: #2E1B20;
+  --ring: 0 0 0 2px #FBF3F1, 0 0 0 4px #2E1B20;
+  --glass: rgba(251, 243, 241, 0.8);
+  --live-ring: conic-gradient(from 200deg, #E59AA4, #F6D2C4, #E59AA4 70%, #F6D2C4, #E59AA4);
+  --deco-1: #F2B8BE;
+  --deco-2: #F6D9CC;
+  --prompt-bg: #F7E1DE;
+  --font-display: var(--font-serif), Georgia, serif;
+  --hd-weight: 600;
+  --hd-tracking: -0.01em;
+  --font-title: var(--font-serif), Georgia, serif;
+  --title-size: 1.375rem;
+  --title-weight: 700;
+  --title-tracking: 0;
+  --card-bg: #FFFBFA;
+  --card-ink: #2E1B20;
+  --card-muted: #7A5C61;
+  --card-strip: #F2B8BE;
+  --card-strip-ink: #2E1B20;
+}
+.dark [data-theme="blush"] {
+  --bg: #150E10;
+  --bg-2: #1A1214;
+  --surface: #1F1618;
+  --surface-2: #281D20;
+  --surface-3: #33262A;
+  --line: #33262A;
+  --line-strong: #4D3A3F;
+  --ink: #FBEFF0;
+  --ink-2: #DCC3C6;
+  --ink-3: #B39BA0;
+  --mute: #8E777B;
+  --btn: #F6D2C4;
+  --btn-ink: #150E10;
+  --accent: #E58C98;
+  --accent-ink: #150E10;
+  --ring: 0 0 0 2px #150E10, 0 0 0 4px #F6D2C4;
+  --glass: rgba(21, 14, 16, 0.8);
+  --prompt-bg: #33262A;
+}
+
+[data-theme="midnight"] {
+  --bg: #F2F3F8;
+  --bg-2: #EAECF3;
+  --surface: #FFFFFF;
+  --surface-2: #ECEEF5;
+  --surface-3: #E1E4EE;
+  --line: #DFE2EC;
+  --line-strong: #C7CCDB;
+  --ink: #0F1630;
+  --ink-2: #4A5270;
+  --ink-3: #5E6684;
+  --mute: #8A90A8;
+  --btn: #0F1630;
+  --btn-ink: #F4ECD6;
+  --accent: #C8A45C;
+  --accent-ink: #0F1630;
+  --ring: 0 0 0 2px #F2F3F8, 0 0 0 4px #0F1630;
+  --glass: rgba(242, 243, 248, 0.8);
+  --live-ring: conic-gradient(from 200deg, #C8A45C, #E9D6A8, #1E2A55 70%, #E9D6A8, #C8A45C);
+  --deco-1: #1E2A55;
+  --deco-2: #E9D6A8;
+  --prompt-bg: #E4E7F1;
+  --card-bg: #FFFFFF;
+  --card-ink: #0F1630;
+  --card-muted: #5E6684;
+  --card-strip: #0F1630;
+  --card-strip-ink: #E9D6A8;
+}
+.dark [data-theme="midnight"] {
+  --bg: #0A0E1F;
+  --bg-2: #0D1226;
+  --surface: #121833;
+  --surface-2: #18203F;
+  --surface-3: #212A4D;
+  --line: #212A4D;
+  --line-strong: #333E66;
+  --ink: #EEF0F8;
+  --ink-2: #BCC2D8;
+  --ink-3: #969DB8;
+  --mute: #6F7694;
+  --btn: #E9D6A8;
+  --btn-ink: #0A0E1F;
+  --accent: #C8A45C;
+  --accent-ink: #0A0E1F;
+  --ring: 0 0 0 2px #0A0E1F, 0 0 0 4px #E9D6A8;
+  --glass: rgba(10, 14, 31, 0.8);
+  --prompt-bg: #212A4D;
+}
+
+[data-theme="garden"] {
+  --bg: #F3F6F0;
+  --bg-2: #EBF0E6;
+  --surface: #FFFFFF;
+  --surface-2: #EDF1E8;
+  --surface-3: #E2E8DA;
+  --line: #DFE5D6;
+  --line-strong: #C6D0B9;
+  --ink: #16201A;
+  --ink-2: #4C5A4F;
+  --ink-3: #5F6D62;
+  --mute: #8A968B;
+  --btn: #1F3A2B;
+  --btn-ink: #FFFFFF;
+  --accent: #8DB580;
+  --accent-ink: #16201A;
+  --ring: 0 0 0 2px #F3F6F0, 0 0 0 4px #1F3A2B;
+  --glass: rgba(243, 246, 240, 0.8);
+  --live-ring: conic-gradient(from 200deg, #6E9A62, #C9DDB3, #6E9A62 70%, #C9DDB3, #6E9A62);
+  --deco-1: #A9C79A;
+  --deco-2: #DCE8CF;
+  --prompt-bg: #E1EAD7;
+  --card-bg: #FFFFFF;
+  --card-ink: #16201A;
+  --card-muted: #5F6D62;
+  --card-strip: #A9C79A;
+  --card-strip-ink: #16201A;
+}
+.dark [data-theme="garden"] {
+  --bg: #0D120F;
+  --bg-2: #101612;
+  --surface: #151C17;
+  --surface-2: #1C251F;
+  --surface-3: #243028;
+  --line: #243028;
+  --line-strong: #364638;
+  --ink: #EEF3EC;
+  --ink-2: #C1CCC2;
+  --ink-3: #9AA79C;
+  --mute: #74817A;
+  --btn: #EEF3EC;
+  --btn-ink: #0D120F;
+  --accent: #9CC48E;
+  --accent-ink: #0D120F;
+  --ring: 0 0 0 2px #0D120F, 0 0 0 4px #EEF3EC;
+  --glass: rgba(13, 18, 15, 0.8);
+  --prompt-bg: #243028;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-2: var(--bg-2);
@@ -78,6 +310,7 @@
   --color-btn: var(--btn);
   --color-btn-ink: var(--btn-ink);
   --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
   --color-blue: var(--blue);
   --color-live: var(--live);
   --color-warn-bg: var(--warn-bg);
@@ -94,10 +327,22 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-/* Headline: Geist 500, tight tracking. Pair the second half with text-mute. */
+/* Headline: Geist 500, tight tracking (serif themes swap the font). Pair the
+   second half with text-mute. */
 @utility hd {
-  font-weight: 500;
-  letter-spacing: -0.045em;
+  font-family: var(--font-display);
+  font-weight: var(--hd-weight);
+  letter-spacing: var(--hd-tracking);
+}
+
+/* Event name under the profile. Classic matches the design boards (16px
+   semibold sans); serif themes make it larger, since serif faces run small. */
+@utility event-title {
+  font-family: var(--font-title, var(--font-geist-sans), system-ui, sans-serif);
+  font-size: var(--title-size, 1rem);
+  font-weight: var(--title-weight, 600);
+  letter-spacing: var(--title-tracking, -0.02em);
+  line-height: 1.2;
 }
 
 /* Small uppercase label in Geist Mono. */

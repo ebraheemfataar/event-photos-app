@@ -4,7 +4,8 @@ import { useRef } from "react";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 import { ArrowRightIcon, DownloadIcon, LinkIcon, ShareIcon } from "@/components/icons";
 
-/** The printable white "table card". Always white, in both themes. */
+/** The printable "table card". Its colours come from the event theme's
+ * --card-* variables, which stay light in dark mode (it gets printed). */
 export function TableCard({
   eventName,
   guestUrl,
@@ -15,24 +16,24 @@ export function TableCard({
   size?: number;
 }) {
   return (
-    <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] border border-line bg-white text-center text-[#0E0E10] shadow-2">
+    <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] border border-line bg-[var(--card-bg)] text-center text-[var(--card-ink)] shadow-2">
       <div className="px-5 pb-4 pt-5">
-        <div className="mono text-[10px] text-[#55555B]">Scan to add your photos</div>
+        <div className="mono text-[10px] text-[var(--card-muted)]">Scan to add your photos</div>
         <div className="hd mt-1.5 text-[26px] leading-[1.05] break-words">{eventName}</div>
         <div className="mx-auto mt-3 flex items-center justify-center" style={{ width: size, height: size }}>
           {guestUrl && (
             <QRCodeSVG
               value={guestUrl}
               size={size}
-              fgColor="#0E0E10"
-              bgColor="#FFFFFF"
+              fgColor="currentColor"
+              bgColor="transparent"
               role="img"
               aria-label="QR code for the guest upload link"
             />
           )}
         </div>
       </div>
-      <div className="flex h-10 items-center justify-center bg-[#FF5A1F] text-[13px] font-semibold text-[#0E0E10]">
+      <div className="flex h-10 items-center justify-center bg-[var(--card-strip)] text-[13px] font-semibold text-[var(--card-strip-ink)]">
         No app · No login · Just scan
       </div>
     </div>
@@ -77,10 +78,11 @@ export default function QRCodeCard({
     await handleCopy();
   }
 
-  function handleDownload() {
-    const qr = canvasWrapRef.current?.querySelector("canvas");
-    if (!qr) return;
-    // Compose a print-ready PNG of the table card.
+  async function handleDownload() {
+    const wrap = canvasWrapRef.current;
+    const qr = wrap?.querySelector("canvas");
+    if (!wrap || !qr) return;
+    // Compose a print-ready PNG of the table card in the event's theme.
     const W = 900;
     const H = 1200;
     const canvas = document.createElement("canvas");
@@ -88,17 +90,23 @@ export default function QRCodeCard({
     canvas.height = H;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const family = getComputedStyle(document.body).fontFamily;
+    const style = getComputedStyle(wrap);
+    const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
+    const bodyFamily = getComputedStyle(document.body).fontFamily;
+    const titleFamily = v("--font-display", bodyFamily);
+    const titleWeight = v("--hd-weight", "500");
+    // Make sure a theme's serif heading font is loaded before drawing with it.
+    await document.fonts.load(`${titleWeight} 72px ${titleFamily}`).catch(() => {});
 
-    ctx.fillStyle = "#FFFFFF";
+    ctx.fillStyle = v("--card-bg", "#FFFFFF");
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#55555B";
+    ctx.fillStyle = v("--card-muted", "#55555B");
     ctx.textAlign = "center";
-    ctx.font = `500 28px ${family}`;
+    ctx.font = `500 28px ${bodyFamily}`;
     ctx.fillText("SCAN TO ADD YOUR PHOTOS", W / 2, 110);
 
-    ctx.fillStyle = "#0E0E10";
-    ctx.font = `500 72px ${family}`;
+    ctx.fillStyle = v("--card-ink", "#0E0E10");
+    ctx.font = `${titleWeight} 72px ${titleFamily}`;
     const words = eventName.split(" ");
     const lines: string[] = [];
     let line = "";
@@ -117,10 +125,10 @@ export default function QRCodeCard({
     const qrTop = 210 + shown.length * 80;
     ctx.drawImage(qr, (W - qrSize) / 2, qrTop, qrSize, qrSize);
 
-    ctx.fillStyle = "#FF5A1F";
+    ctx.fillStyle = v("--card-strip", "#FF5A1F");
     ctx.fillRect(0, H - 120, W, 120);
-    ctx.fillStyle = "#0E0E10";
-    ctx.font = `600 36px ${family}`;
+    ctx.fillStyle = v("--card-strip-ink", "#0E0E10");
+    ctx.font = `600 36px ${bodyFamily}`;
     ctx.fillText("No app · No login · Just scan", W / 2, H - 48);
 
     const a = document.createElement("a");
@@ -135,7 +143,7 @@ export default function QRCodeCard({
         <TableCard eventName={eventName} guestUrl={guestUrl} />
       </div>
       <div ref={canvasWrapRef} className="hidden" aria-hidden="true">
-        {guestUrl && <QRCodeCanvas value={guestUrl} size={600} marginSize={0} />}
+        {guestUrl && <QRCodeCanvas value={guestUrl} size={600} marginSize={0} bgColor="transparent" />}
       </div>
       <div className={`flex flex-col gap-2 ${split ? "md:min-w-0 md:flex-1" : ""}`}>
         {split && (
@@ -157,7 +165,7 @@ export default function QRCodeCard({
             <LinkIcon size={17} />
             Copy guest link
           </span>
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-[#0E0E10]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
             <ArrowRightIcon size={18} />
           </span>
         </button>

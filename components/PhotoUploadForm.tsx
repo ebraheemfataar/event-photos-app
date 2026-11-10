@@ -165,7 +165,7 @@ export default function PhotoUploadForm({
           className="flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
         >
           {isUploading ? "Uploading…" : "Take photo"}
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-[#0E0E10]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
             <CameraIcon size={18} strokeWidth={2.2} />
           </span>
         </button>
