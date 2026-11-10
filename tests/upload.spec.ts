@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BASE, SEED_EVENT, makeJpeg, waitForAlbumSubscription } from "./helpers";
+import { BASE, SEED_EVENT, SEED_HOST_TOKEN, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
 // End-to-end uploads through the real guest page. Opt-in, because it needs the
 // local stack and dev server running:
@@ -33,6 +33,32 @@ test("guest upload works and never loads code from a CDN", async ({ page }) => {
   await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
 
   expect(cdnRequests, "compression must use the self-hosted worker").toEqual([]);
+});
+
+test("host can add photos from the host page, named 'Host' by default", async ({ page }) => {
+  const subscribed = waitForAlbumSubscription(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/host/${SEED_EVENT}?t=${SEED_HOST_TOKEN}`);
+  await subscribed;
+
+  await page.getByRole("button", { name: "Add photos" }).first().click();
+  await expect(page.getByPlaceholder("optional")).toHaveValue("Host");
+  const name = `Host ${Date.now()}`;
+  await page.getByPlaceholder("optional").fill(name);
+  await page
+    .locator('input[type="file"][multiple]')
+    .setInputFiles({ name: "host.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(page, "#1F3A2B") });
+
+  await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Feed", exact: true }).click();
+  await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
+});
+
+test("wrong host token: no Add photos", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/host/${SEED_EVENT}?t=00000000-0000-4000-8000-0000000000ff`);
+  await expect(page.getByRole("tab", { name: "Feed", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add photos" })).toHaveCount(0);
 });
 
 /** A 1×1, two-frame animated GIF (red frame, then blue), looping forever. */

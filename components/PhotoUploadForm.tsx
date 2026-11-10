@@ -6,15 +6,19 @@ import { compressImage } from "@/lib/compressImage";
 import { MAX_UPLOAD_BYTES, PASSTHROUGH_TYPES, extensionFor } from "@/lib/compressOptions";
 import PromptChips from "@/components/PromptChips";
 import { CameraIcon, ImagesIcon } from "@/components/icons";
+import Spinner from "@/components/Spinner";
 
 export default function PhotoUploadForm({
   eventId,
+  defaultName = "",
   onUploaded,
 }: {
   eventId: string;
+  /** Pre-filled "Your name" (the host page passes "Host"); editable. */
+  defaultName?: string;
   onUploaded?: (count: number) => void;
 }) {
-  const [guestName, setGuestName] = useState("");
+  const [guestName, setGuestName] = useState(defaultName);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +123,8 @@ export default function PhotoUploadForm({
       {progress && (
         <div role="status" aria-live="polite" className="rounded-[18px] border border-line bg-surface p-3">
           <div className="flex justify-between text-sm font-semibold">
-            <span>
+            <span className="flex items-center gap-2">
+              <Spinner size={15} />
               Posting {Math.min(progress.done + 1, progress.total)} of {progress.total}…
             </span>
             <span className="mono text-[11px] text-ink-2">{pct}%</span>
@@ -161,12 +166,13 @@ export default function PhotoUploadForm({
         <button
           type="button"
           disabled={isUploading}
+          aria-busy={isUploading}
           onClick={() => cameraInputRef.current?.click()}
-          className="flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+          className={`flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] ${isUploading ? "cursor-progress" : "disabled:opacity-50"}`}
         >
           {isUploading ? "Uploading…" : "Take photo"}
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
-            <CameraIcon size={18} strokeWidth={2.2} />
+            {isUploading ? <Spinner /> : <CameraIcon size={18} strokeWidth={2.2} />}
           </span>
         </button>
         <button

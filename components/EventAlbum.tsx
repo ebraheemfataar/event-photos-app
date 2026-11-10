@@ -16,6 +16,7 @@ import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
 import QRCodeCard from "@/components/QRCodeCard";
 import Sheet from "@/components/Sheet";
+import Spinner from "@/components/Spinner";
 import StoryViewer from "@/components/StoryViewer";
 import ThemeToggle from "@/components/ThemeToggle";
 import { FeedView, GridView } from "@/components/PhotoGrid";
@@ -88,7 +89,9 @@ export default function EventAlbum({
   const [editOpen, setEditOpen] = useState(false);
 
   const isHost = mode === "host";
-  const canUpload = mode === "guest";
+  // Hosts add photos too (same upload path and RLS as guests); a visitor with
+  // a wrong host token ("viewer") can't.
+  const canUpload = mode === "guest" || mode === "host";
   const canRemove = isHost && Boolean(onPhotoRemoved) && (demo || Boolean(hostToken));
   const canEdit = isHost && !demo && Boolean(hostToken);
   // The editor also opens on /demo?as=host, saving to that page only.
@@ -241,15 +244,27 @@ export default function EventAlbum({
           <QrIcon size={18} />
         </button>
       </>
-    ) : showEdit ? (
-      <button
-        type="button"
-        onClick={() => setEditOpen(true)}
-        className="flex h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-line-strong bg-surface px-4 text-sm font-semibold transition-colors hover:bg-surface-3 lg:flex-none"
-      >
-        <PencilIcon size={16} />
-        Edit event
-      </button>
+    ) : isHost ? (
+      <>
+        <button
+          type="button"
+          onClick={() => setUploadOpen(true)}
+          className="flex h-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-btn px-4 text-sm font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.97] lg:flex-none lg:gap-2 lg:px-5"
+        >
+          <PlusIcon size={17} />
+          Add photos
+        </button>
+        {showEdit && (
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="flex h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-line-strong bg-surface px-4 text-sm font-semibold transition-colors hover:bg-surface-3 lg:flex-none"
+          >
+            <PencilIcon size={16} />
+            Edit event
+          </button>
+        )}
+      </>
     ) : null;
 
   const subtitle = isHost ? (
@@ -498,7 +513,7 @@ export default function EventAlbum({
         <BarItem active={view === "grid"} onClick={() => showView("grid")} icon={<AlbumIcon size={24} filled={view === "grid"} />}>
           Album
         </BarItem>
-        {canUpload && (
+        {mode === "guest" && (
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
@@ -543,6 +558,7 @@ export default function EventAlbum({
           ) : (
             <PhotoUploadForm
               eventId={eventId}
+              defaultName={isHost ? "Host" : undefined}
               onUploaded={(n) => {
                 setUploadOpen(false);
                 notify(n === 1 ? "Shared to the album" : `${n} photos shared to the album`);
@@ -609,9 +625,10 @@ export default function EventAlbum({
                 type="button"
                 onClick={removePhoto}
                 disabled={removing}
-                className="flex h-14 items-center justify-center gap-2 rounded-full bg-danger text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60 dark:text-[#0E0E10]"
+                aria-busy={removing}
+                className="flex h-14 items-center justify-center gap-2 rounded-full bg-danger text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-progress dark:text-[#0E0E10]"
               >
-                <TrashIcon size={18} />
+                {removing ? <Spinner /> : <TrashIcon size={18} />}
                 {removing ? "Removing…" : "Remove for everyone"}
               </button>
               <button

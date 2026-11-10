@@ -5,7 +5,7 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 (board names are referenced below in *italics*). How the app works end to end:
 [FLOWS.md](FLOWS.md) (Mermaid process diagrams).
 
-**Live:** https://event-photos-app-six.vercel.app · **Hosted DB migrations applied:** 0001–0007 (0008 with the themes release)
+**Live:** https://event-photos-app-six.vercel.app · **Hosted DB migrations applied:** 0001–0008
 
 | Phase | Theme | Status | Size |
 |---|---|---|---|
@@ -21,11 +21,11 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | 7 | Host accounts, My events, settings, team | Planned | L |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
-| **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | 🔧 Built on `themes` (migration 0008) | M |
+| **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | ✅ Shipped (`d8ca440`, migration 0008) | M |
 | **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | Planned | L |
 | — | Backlog / tech debt | Ongoing | — |
 
-**Build order from here:** ship **Themes** → **2c** (doubles as
+**Build order from here:** **2c** (doubles as
 Monetisation Stage A's enforcement point) → **Monetisation A** (plan columns,
 expiry job) → **Monetisation B** (paid plans, PayFast) → Phase 4 leftovers →
 Phase 5 → Phases 6/7 (unlock Monetisation C) → the rest.
@@ -105,6 +105,7 @@ Goal: you can only see an event's photos if you know that event's id (i.e. you h
 - **Server-issued upload URLs.** A server action checks limits, then returns a one-time signed upload URL (`createSignedUploadUrl`) and inserts the `photos` row; the browser uploads straight to Storage. Direct anon storage inserts are then removed.
 - **Rate limits** in that server step: e.g. 50 uploads/hour per device and per IP, plus a whole-album cap (needs a small store — a Postgres table or Upstash/Vercel KV).
 - **Device id:** a random id in `localStorage`, stored on `photos.device_id`. Becomes `pass_id` in Phase 6.
+- **Host uploads** (host page "Add photos", named "Host" by default) go through the same step but must not count toward guest rate limits or the paid contributor cap: mark them by checking the host token in the server action (e.g. `photos.by_host`).
 - **Guests delete their own photos:** "⋯ → Delete my photo" in the viewer for photos with your device id (*Guest — consent, delete own, report, limits* ②), via an RPC or server action that checks the device id.
 
 **Done when:** a script that tries 100 uploads gets cut off; a guest can delete their own photo but not anyone else's.
@@ -193,7 +194,7 @@ Board: *Event location*, handoff column 03.
 
 ---
 
-## Event themes + event details · Size M · 🔧 built on `themes`
+## Event themes + event details · Size M · ✅ shipped
 
 Hosts pick a preset when creating the event (changeable later): **Sunset Pop** (id `classic`, the original look), **Champagne** (`gold`, weddings; serif headings), **Rosé** (`blush`), **Midnight Gala** (`midnight`), **Garden Party** (`garden`). Names are display-only; ids are stored.
 - Themes change the frame only: accent colour, background tint, heading font, cover ring and the printed QR card / table tent. Photos stay neutral.

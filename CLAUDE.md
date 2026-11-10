@@ -41,6 +41,7 @@ Database migrations live in `supabase/migrations/*.sql`. Locally they're applied
 - `app/page.tsx` → `CreateEventForm` → `create_event` RPC, redirects to the host URL.
 - `app/host/[id]/page.tsx` and `app/e/[id]/page.tsx` (server components) → `getEvent` + `getEventPhotos`, render `PhotoGallery` → `EventAlbum` (profile, QR card for hosts, grid/feed, story viewer, upload sheet).
 - **Host photo removal:** the host page passes the verified `?t=` token as `hostToken`; the story viewer and feed show a remove button (host only), a confirm sheet calls the `delete_event_photo` RPC, and the 0007 trigger removes it live for everyone. On `/demo?as=host` removal is local-only.
+- Hosts can upload too: the host page shows "Add photos" (same `PhotoUploadForm`, name pre-filled "Host"); a wrong-token viewer can't.
 - `PhotoUploadForm` compresses images client-side (`lib/compressImage.ts`; GIFs pass through), uploads to the `event-photos` bucket, then inserts a row into `photos`.
 - **Live updates:** a trigger on `photos` (`broadcast_photo_change`, 0007) sends only `{id}` as a Realtime **Broadcast** (`photo_inserted` / `photo_deleted`) on the public topic `event:<event id>`. `PhotoGallery` subscribes to that channel and, because anyone can send on a public channel, verifies every message by calling the Server Function `fetchEventPhotos` (`lib/photoActions.ts`) before adding or removing a photo. Ids arriving within ~150 ms are checked in one call, because Next runs a page's Server Function calls one at a time. `postgres_changes` is not used (it needs anon SELECT).
 

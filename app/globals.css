@@ -466,6 +466,14 @@ body {
   10%, 100% { transform: scale(1); }
 }
 
+/* components/Spinner.tsx */
+.spinner {
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Printable A4 table tent (components/TableTent.tsx). Fold along the middle;
    the top half is upside down so both faces read correctly when standing. */
 .print-root {
@@ -617,5 +625,9 @@ body {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+  /* A slow spin still says "working"; a frozen spinner looks broken. */
+  .spinner {
+    animation: spin 1.6s linear infinite !important;
   }
 }

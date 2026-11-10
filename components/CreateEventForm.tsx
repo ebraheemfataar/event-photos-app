@@ -6,6 +6,7 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 import { LIMITS, validateDetails } from "@/lib/eventDetails";
 import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
 import { ArrowRightIcon } from "@/components/icons";
+import Spinner from "@/components/Spinner";
 
 const FIELD =
   "h-13 rounded-[14px] border border-line-strong bg-surface-2 px-4 text-base text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-ink";
@@ -124,11 +125,12 @@ export default function CreateEventForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="mt-1 flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+        aria-busy={isSubmitting}
+        className={`mt-1 flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] ${isSubmitting ? "cursor-progress" : "disabled:opacity-50"}`}
       >
         {isSubmitting ? "Creating…" : "Create event"}
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
-          <ArrowRightIcon size={18} />
+          {isSubmitting ? <Spinner /> : <ArrowRightIcon size={18} />}
         </span>
       </button>
       <p className="text-center text-[13px] text-ink-3">Guests never need an account. Add a cover, poster and links next.</p>

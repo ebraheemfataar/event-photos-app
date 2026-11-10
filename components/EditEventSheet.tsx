@@ -12,6 +12,7 @@ import { finishEventImageUpload, removeEventImage, saveEventDetails, startEventI
 import type { ThemeId } from "@/lib/themes";
 import Sheet from "@/components/Sheet";
 import CoverCropper from "@/components/CoverCropper";
+import Spinner from "@/components/Spinner";
 import ThemePicker from "@/components/ThemePicker";
 import { CloseIcon, ImagesIcon, PlusIcon, TrashIcon } from "@/components/icons";
 
@@ -144,6 +145,7 @@ export default function EditEventSheet({
                     {monogram(name || event.name)}
                   </span>
                 )}
+                {busyImage === "cover" && <BusyOverlay />}
               </span>
               <ImageButtons
                 kind="cover"
@@ -160,7 +162,8 @@ export default function EditEventSheet({
           <Label hint="Optional. Your invitation or poster, shown in full when guests tap the circle.">Poster or invitation</Label>
           <div className="mt-2 flex items-center gap-4">
             <span className="relative flex h-[90px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 text-ink-3">
-              {poster ? <Image src={poster} alt="Current poster" fill sizes="72px" className="object-cover" /> : <ImagesIcon size={22} />}
+              {poster ? <Image src={poster} alt="Current poster" fill sizes="72px" className="object-cover" /> : busyImage !== "poster" && <ImagesIcon size={22} />}
+              {busyImage === "poster" && <BusyOverlay />}
             </span>
             <ImageButtons
               kind="poster"
@@ -267,12 +270,24 @@ export default function EditEventSheet({
           type="button"
           onClick={save}
           disabled={saving || busyImage !== null || cropFile !== null}
-          className="flex h-14 items-center justify-center rounded-full bg-btn text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+          aria-busy={saving}
+          className={`flex h-14 items-center justify-center gap-2.5 rounded-full bg-btn text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 ${saving ? "cursor-progress" : "disabled:opacity-50"}`}
         >
+          {saving && <Spinner />}
           {saving ? "Saving…" : "Save details"}
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/** Shimmer + spinner over an image that's being replaced or removed. */
+function BusyOverlay() {
+  return (
+    <span className="absolute inset-0 flex items-center justify-center">
+      <span className="skeleton absolute inset-0 opacity-80" />
+      <Spinner size={22} className="relative text-ink" />
+    </span>
   );
 }
 
@@ -304,9 +319,11 @@ function ImageButtons({
       <button
         type="button"
         disabled={busy}
+        aria-busy={busy}
         onClick={() => input.current?.click()}
-        className="flex h-11 items-center gap-2 rounded-full bg-btn px-4 text-sm font-semibold text-btn-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+        className={`flex h-11 items-center gap-2 rounded-full bg-btn px-4 text-sm font-semibold text-btn-ink transition-opacity hover:opacity-90 ${busy ? "cursor-progress" : "disabled:opacity-50"}`}
       >
+        {busy && <Spinner size={16} />}
         {busy ? "Uploading…" : has ? `Change ${kind}` : `Upload ${kind}`}
       </button>
       {has && (
