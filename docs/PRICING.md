@@ -36,12 +36,16 @@ Further decisions made while planning:
 
 ## Stages
 
-### Stage A — Foundations (no payments yet)
+### Stage A — Foundations (no payments yet) · 🔧 built (migration 0011)
 - **Phase 2c:** uploads go through the server (a Server Function issues a one-time signed upload URL and inserts the row). This is the single place to enforce the contributor cap, rate limits and (later) the video block. Also issues the browser **guest id** (stored hashed as `photos.guest_hash`), used for the cap (contributors = distinct `guest_hash` where `by_host` is false) and for "delete my own photo". ✅ Built: `lib/uploadActions.ts`, migrations 0009–0010.
 - `events.plan` (default `free`), `events.expires_at`, `events.extra_contributors`, `events.host_email` (nullable).
 - `plans` and `add_ons` tables, seeded from the tables above. **Limits live only there** — components read them through `lib/data.ts`, nothing hardcoded.
-- **Expiry job:** Vercel Cron (daily) calls a protected route that deletes events past `expires_at` (rows + storage files) and sends reminders 7 days and 1 day before, for events with an email. Replaces the retention item in roadmap Phase 4. *Needs an email provider — new dependency, ask first.*
-- Host page shows plan, contributors used / cap, and the deletion date.
+- **Expiry job:** ✅ Vercel Cron (daily, `vercel.json`) calls `/api/cron/expire` (`CRON_SECRET`), which deletes events past `expires_at` (storage files, then rows). **Report-only until `EXPIRY_DELETE_ENABLED=true`**, to be switched on at launch. Reminders 7 days and 1 day before (events with an email) still need an email provider — open decision. Replaces the retention item in roadmap Phase 4.
+- **Existing events:** ✅ marked `legacy_uncapped` (no cap) with `expires_at` null for now; the Stage B launch migration sets them to launch + 90 days, as decided above.
+- ✅ Host page shows plan, contributors used / cap, and the deletion date (plan chip → "Your plan" sheet with all plans; upgrade button disabled until Stage B).
+- ✅ Uploads are refused once an album is past `expires_at`.
+
+**Where pricing shows up (agreed):** a pricing section on the landing page (four plan cards + "Compare plans"), a full `/pricing` page (comparison, add-ons, FAQ), the plan chip/sheet in the host album, and a plan picker in the create form (Free pre-selected). The landing section, `/pricing` and the picker ship in Stage B with checkout.
 
 ### Stage B — Paid plans v1
 - **Contributor cap enforced on the server** (2c upload step): a new contributor beyond the cap gets "This album is full — ask the host to upgrade"; existing contributors keep uploading.

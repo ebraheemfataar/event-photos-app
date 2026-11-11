@@ -8,6 +8,8 @@ import { formatEventDate, type ValidDetails } from "@/lib/eventDetails";
 import EventCover from "@/components/EventCover";
 import EventInfoSheet from "@/components/EventInfoSheet";
 import EditEventSheet from "@/components/EditEventSheet";
+import PlanSheet, { PlanChip } from "@/components/PlanSheet";
+import type { Plan, PlanStatus } from "@/lib/plans";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
 import { deleteMyPhoto, removePhotoAsHost } from "@/lib/uploadActions";
@@ -57,6 +59,9 @@ export type EventAlbumProps = {
   onPhotoRemoved?: (photoId: string) => void;
   /** /demo only: apply edited event details to the page. */
   onDemoEdit?: (details: ValidDetails) => void;
+  /** Host only: plan, usage and deletion date (0011) + all plans to compare. */
+  planStatus?: PlanStatus | null;
+  plans?: Plan[];
 };
 
 type View = "grid" | "feed";
@@ -72,6 +77,8 @@ export default function EventAlbum({
   hostToken,
   onPhotoRemoved,
   onDemoEdit,
+  planStatus,
+  plans = [],
 }: EventAlbumProps) {
   const { id: eventId, name: eventName, is_active: isActive, created_at: createdAt } = event;
   const theme = event.theme ?? DEFAULT_THEME;
@@ -88,6 +95,7 @@ export default function EventAlbum({
   const [removing, setRemoving] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
 
   const isHost = mode === "host";
   // Hosts add photos too (same upload path and RLS as guests); a visitor with
@@ -391,6 +399,11 @@ export default function EventAlbum({
             </div>
             <h1 className="event-title mt-3">{eventName}</h1>
             <p className="mt-0.5 text-sm leading-snug text-ink-2">{subtitle}</p>
+            {isHost && planStatus && (
+              <div className="mt-2.5">
+                <PlanChip status={planStatus} onClick={() => setPlanOpen(true)} />
+              </div>
+            )}
             {actions && <div className="mt-3 flex gap-1.5">{actions}</div>}
           </section>
 
@@ -418,6 +431,11 @@ export default function EventAlbum({
               </dl>
               <div className="event-title mt-4">{eventName}</div>
               <p className="mt-0.5 text-[15px] leading-normal text-ink-2">{subtitle}</p>
+              {isHost && planStatus && (
+                <div className="mt-3">
+                  <PlanChip status={planStatus} onClick={() => setPlanOpen(true)} />
+                </div>
+              )}
             </div>
           </section>
 
@@ -581,6 +599,10 @@ export default function EventAlbum({
       <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Invite guests">
         {qrOpen && <QRCodeCard eventName={eventName} guestUrl={resolveGuestUrl()} onNotify={notify} />}
       </Sheet>
+
+      {isHost && planStatus && (
+        <PlanSheet open={planOpen} onClose={() => setPlanOpen(false)} status={planStatus} plans={plans} />
+      )}
 
       <EventInfoSheet
         event={event}

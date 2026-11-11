@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Event, Photo } from "@/lib/types";
+import { planStatus, type Plan, type PlanStatus } from "@/lib/plans";
 
 // Server-side reads. Each function takes the id from the URL / caller and
 // returns only that record (or that event's photos) — the "knowing the link
@@ -16,7 +17,27 @@ export function isUuid(value: unknown): value is string {
 const PHOTO_COLUMNS = "id, event_id, storage_path, guest_name, content_type, prompt_id, created_at";
 
 export const EVENT_COLUMNS =
-  "id, name, is_active, created_at, theme, event_date, note, cover_path, poster_path, links";
+  "id, name, is_active, created_at, theme, event_date, note, cover_path, poster_path, links, plan, expires_at, extra_contributors, legacy_uncapped";
+
+/** All plans, cheapest first. Limits live only in the `plans` table (0011). */
+export const getPlans = cache(async (): Promise<Plan[]> => {
+  const { data } = await createServiceClient()
+    .from("plans")
+    .select("id, name, price_cents, max_contributors, retention_days, shows_badge, sort_order")
+    .order("sort_order")
+    .returns<Plan[]>();
+  return data ?? [];
+});
+
+/** Plan, usage and deletion date for the host's plan sheet. */
+export async function getPlanStatus(event: Event): Promise<PlanStatus | null> {
+  const plans = await getPlans();
+  const plan = plans.find((p) => p.id === event.plan);
+  if (!plan) return null;
+  const { data } = await createServiceClient().rpc("event_usage", { p_event_id: event.id });
+  const usage = (data as { photos: number; contributors: number }[] | null)?.[0] ?? { photos: 0, contributors: 0 };
+  return planStatus(event, plan, usage);
+}
 
 // cache(): the page, its metadata and its link-preview image all read the
 // event in the same request; this makes that one database call.

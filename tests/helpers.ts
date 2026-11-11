@@ -22,7 +22,12 @@ export function localEnv() {
   if (!url?.startsWith("http://127.0.0.1")) {
     throw new Error("E2E tests need .env.development.local pointing at the local stack (npm run db:env).");
   }
-  return { url, anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY, serviceKey: env.SUPABASE_SERVICE_ROLE_KEY };
+  return {
+    url,
+    anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
+    cronSecret: env.CRON_SECRET,
+  };
 }
 
 /** Resolves once the album page has joined its realtime channel. Register

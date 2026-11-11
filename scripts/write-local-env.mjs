@@ -33,6 +33,8 @@ writeFileSync(
     `NEXT_PUBLIC_SUPABASE_ANON_KEY=${anonKey}`,
     "# Server-only (lib/supabase/server.ts). The local stack's built-in key, not a real secret.",
     `SUPABASE_SERVICE_ROLE_KEY=${serviceKey}`,
+    "# Lets you (and tests) call /api/cron/expire locally. Not a real secret.",
+    "CRON_SECRET=local-cron-secret",
     "",
   ].join("\n")
 );

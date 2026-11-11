@@ -14,6 +14,11 @@ export type Event = {
   cover_path: string | null;
   poster_path: string | null;
   links: EventLink[];
+  // Plans (0011_plans.sql). host_email is never selected for pages.
+  plan: string;
+  expires_at: string | null;
+  extra_contributors: number;
+  legacy_uncapped: boolean;
 };
 
 export type EventLink = { label: string; url: string };

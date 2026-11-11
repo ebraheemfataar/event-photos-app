@@ -5,7 +5,8 @@ import type { Photo } from "@/lib/types";
 import EventAlbum, { type AlbumMode } from "./EventAlbum";
 import Sheet from "./Sheet";
 import ThemePicker from "./ThemePicker";
-import { demoEvent } from "@/lib/demoPhotos";
+import { DEMO_PLANS, demoEvent } from "@/lib/demoPhotos";
+import { planStatus } from "@/lib/plans";
 import type { ValidDetails } from "@/lib/eventDetails";
 import { THEMES, themeName, type ThemeId } from "@/lib/themes";
 
@@ -59,6 +60,11 @@ export default function DemoAlbum({
         guestUrl={guestUrl}
         onPhotoRemoved={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
         onDemoEdit={applyDetails}
+        planStatus={planStatus(baseEvent, DEMO_PLANS[1], {
+          photos: photos.length,
+          contributors: new Set(photos.map((p) => p.guest_name)).size,
+        })}
+        plans={DEMO_PLANS}
       />
 
       <div data-theme={theme}>

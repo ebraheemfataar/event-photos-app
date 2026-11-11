@@ -24,7 +24,7 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
 | **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | ✅ Shipped (`d8ca440`, migration 0008) | M |
-| **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | Planned | L |
+| **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | Stage A 🔧 built (migration 0011); B–D planned | L |
 | — | Backlog / tech debt | Ongoing | — |
 
 **Build order from here:** **2c** (doubles as
@@ -224,7 +224,7 @@ Hosts pick a preset when creating the event (changeable later): **Sunset Pop** (
 
 Once-off per-event plans (Free / R149 / R399 / R799) priced by contributor
 count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md):
-- **Stage A — Foundations:** 2c server uploads + guest ids, `events.plan` / `expires_at`, `plans` seed table, daily expiry job + reminders.
+- **Stage A — Foundations:** 🔧 built — `plans` / `add_ons` tables, `events.plan` / `expires_at`, usage + host plan sheet, daily expiry job (report-only until launch). Reminders wait on the email-provider decision.
 - **Stage B — Paid plans v1:** contributor cap enforced on the server, plan picker + pricing page, upgrade for the difference, `event_purchases`, PayFast checkout with verified ITN only.
 - **Stage C — Needs host accounts (Phase 7):** 3-event pack, returning-host coupon, Pro subscription, co-hosts, own logo.
 - **Stage D — As features are built:** video, full-res, ZIP, slideshow, highlight video, printed card packs.

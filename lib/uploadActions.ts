@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isEventHost, isUuid } from "@/lib/data";
 import { getPromptById } from "@/lib/prompts";
+import { isExpired } from "@/lib/plans";
 import {
   ALBUM_MAX_PHOTOS,
   GUEST_UPLOADS_PER_HOUR,
@@ -49,9 +50,10 @@ export async function startPhotoUpload(input: {
   if (!ext) return { ok: false, error: "Only photos (JPG, PNG, WebP, GIF, HEIC) can be shared." };
 
   const supabase = createServiceClient();
-  const { data: event } = await supabase.from("events").select("id, is_active").eq("id", eventId).maybeSingle();
+  const { data: event } = await supabase.from("events").select("id, is_active, expires_at").eq("id", eventId).maybeSingle();
   if (!event) return { ok: false, error: "This album doesn't exist." };
   if (!event.is_active) return { ok: false, error: "This album is closed to new photos." };
+  if (isExpired(event.expires_at)) return { ok: false, error: "This album has expired and is closed to new photos." };
 
   const byHost = hostToken ? await isEventHost(eventId, hostToken) : false;
   const guestHash = hashGuest(guestId);

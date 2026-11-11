@@ -1,4 +1,5 @@
 import type { Event, Photo } from "@/lib/types";
+import type { Plan } from "@/lib/plans";
 
 // Mock album for /demo and the landing page. Photos are from Unsplash
 // (free to use under the Unsplash License). Every URL shares one query string
@@ -29,8 +30,21 @@ export function demoEvent(createdAt: string): Event {
       { label: "Gift registry", url: "https://example.com/registry" },
       { label: "Our story", url: "https://example.com/our-story" },
     ],
+    plan: "small",
+    expires_at: new Date(new Date(createdAt).getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    extra_contributors: 0,
+    legacy_uncapped: false,
   };
 }
+
+/** Plan sheet contents for /demo?as=host (no database). Mirrors the seeded
+ * `plans` table in 0011_plans.sql. */
+export const DEMO_PLANS: Plan[] = [
+  { id: "free", name: "Free", price_cents: 0, max_contributors: 20, retention_days: 30, shows_badge: true, sort_order: 1 },
+  { id: "small", name: "Small", price_cents: 14900, max_contributors: 100, retention_days: 90, shows_badge: true, sort_order: 2 },
+  { id: "medium", name: "Medium", price_cents: 39900, max_contributors: 300, retention_days: 365, shows_badge: false, sort_order: 3 },
+  { id: "unlimited", name: "Unlimited", price_cents: 79900, max_contributors: null, retention_days: null, shows_badge: false, sort_order: 4 },
+];
 
 /** [unsplash id, guest name, prompt id, minutes ago] — newest first. */
 const SEED: [string, string | null, string | null, number][] = [
