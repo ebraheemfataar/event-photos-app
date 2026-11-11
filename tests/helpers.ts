@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import type { Page } from "@playwright/test";
@@ -56,21 +56,29 @@ export async function makeJpeg(page: Page, color = "#FF5A1F"): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
-/** Upload a photo the way the browser does (anon storage upload + anon insert). */
-export async function anonUpload(guestName: string, jpeg: Buffer) {
-  const { url, anonKey } = localEnv();
-  const anon = createClient(url, anonKey);
+/** Put a photo straight into the seed album with the service key, as if
+ * another guest had finished an upload. (Since 0010 anon can't upload
+ * directly; the real browser flow is tested in upload.spec.ts.) */
+export async function seedPhoto(guestName: string, jpeg: Buffer, guestHash: string | null = null) {
+  const { url, serviceKey } = localEnv();
+  const service = createClient(url, serviceKey);
   const id = randomUUID();
   const path = `${SEED_EVENT}/${id}.jpg`;
-  const up = await anon.storage.from("event-photos").upload(path, jpeg, { contentType: "image/jpeg" });
-  expect(up.error, "anon upload still allowed").toBeNull();
-  const ins = await anon.from("photos").insert({
+  const up = await service.storage.from("event-photos").upload(path, jpeg, { contentType: "image/jpeg" });
+  expect(up.error).toBeNull();
+  const ins = await service.from("photos").insert({
     id,
     event_id: SEED_EVENT,
     storage_path: path,
     guest_name: guestName,
     content_type: "image/jpeg",
+    guest_hash: guestHash,
   });
-  expect(ins.error, "anon insert still allowed").toBeNull();
+  expect(ins.error).toBeNull();
   return { id, path };
+}
+
+/** How the server stores a browser's guest id (lib/uploadActions.ts). */
+export function guestHash(guestId: string) {
+  return createHash("sha256").update(`guest:${guestId}`).digest("hex");
 }

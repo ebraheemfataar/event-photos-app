@@ -17,14 +17,19 @@ export default function StoryViewer({
   onIndexChange,
   onClose,
   onRemove,
+  canRemove,
+  removeLabel = () => "Remove photo",
   paused = false,
 }: {
   photos: Photo[];
   index: number;
   onIndexChange: (index: number) => void;
   onClose: () => void;
-  /** Host only: shows a remove button for the current photo. */
+  /** Shows a remove button for the current photo (host: all; guest: own). */
   onRemove?: (photo: Photo) => void;
+  /** Per photo; defaults to every photo when onRemove is set. */
+  canRemove?: (photo: Photo) => boolean;
+  removeLabel?: (photo: Photo) => string;
   /** True while a dialog (e.g. the remove confirmation) sits on top: the
    * viewer then ignores keys so Esc/Tab/arrows belong to that dialog. */
   paused?: boolean;
@@ -171,11 +176,11 @@ export default function StoryViewer({
                 · {timeAgo(photo.created_at)}
               </span>
             </div>
-            {onRemove && (
+            {onRemove && (canRemove?.(photo) ?? true) && (
               <button
                 type="button"
                 onClick={() => onRemove(photo)}
-                aria-label="Remove photo"
+                aria-label={removeLabel(photo)}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/15"
               >
                 <TrashIcon size={21} />

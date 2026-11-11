@@ -84,7 +84,12 @@ export function FeedView({
   freshIds,
   onOpen,
   onRemove,
-}: Common & { /** Host only: a remove button on each post. */ onRemove?: (photo: Photo) => void }) {
+  canRemove,
+}: Common & {
+  /** A remove button on posts (host: all; guest: their own). */
+  onRemove?: (photo: Photo) => void;
+  canRemove?: (photo: Photo) => boolean;
+}) {
   return (
     <div className="mx-auto flex w-full max-w-[470px] flex-col gap-3 pt-2.5 lg:gap-6">
       {photos.map((photo, i) => {
@@ -118,7 +123,7 @@ export function FeedView({
                   <span className="truncate">{prompt.label}</span>
                 </span>
               )}
-              {onRemove && (
+              {onRemove && (canRemove?.(photo) ?? true) && (
                 <button
                   type="button"
                   onClick={() => onRemove(photo)}

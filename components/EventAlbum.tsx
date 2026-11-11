@@ -10,7 +10,8 @@ import EventInfoSheet from "@/components/EventInfoSheet";
 import EditEventSheet from "@/components/EditEventSheet";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { deleteMyPhoto, removePhotoAsHost } from "@/lib/uploadActions";
+import { forgetMyPhoto, getGuestId, useMyPhotoIds } from "@/lib/guestId";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
@@ -50,7 +51,7 @@ export type EventAlbumProps = {
   guestUrl?: string;
   /** Mock album (/demo): photos are plain URLs and uploading is switched off. */
   demo?: boolean;
-  /** Host page only: the validated ?t= token, sent to delete_event_photo. */
+  /** Host page only: the validated ?t= token (host edits, removals, uploads). */
   hostToken?: string;
   /** Drop a photo from the album state after the host removed it. */
   onPhotoRemoved?: (photoId: string) => void;
@@ -93,6 +94,13 @@ export default function EventAlbum({
   // a wrong host token ("viewer") can't.
   const canUpload = mode === "guest" || mode === "host";
   const canRemove = isHost && Boolean(onPhotoRemoved) && (demo || Boolean(hostToken));
+  // Guests can delete photos they shared from this browser (Phase 2c). The
+  // list is only a hint for showing the button; the server re-checks.
+  const myPhotoIds = useMyPhotoIds();
+  const isMine = (photo: Photo) => mode === "guest" && !demo && myPhotoIds.has(photo.id);
+  const removeEnabled = canRemove || (mode === "guest" && !demo && Boolean(onPhotoRemoved));
+  const canRemovePhoto = (photo: Photo) => canRemove || isMine(photo);
+  const removingOwn = removeTarget !== null && !canRemove;
   const canEdit = isHost && !demo && Boolean(hostToken);
   // The editor also opens on /demo?as=host, saving to that page only.
   const showEdit = canEdit || (isHost && demo && Boolean(onDemoEdit));
@@ -142,17 +150,17 @@ export default function EventAlbum({
     if (!target || !onPhotoRemoved) return;
     setRemoving(true);
     if (!demo) {
-      // The database checks the host token (delete_event_photo, 0004); the
-      // trigger from 0007 then tells every open album to drop the photo.
-      const { error } = await createSupabaseClient().rpc("delete_event_photo", {
-        p_photo_id: target.id,
-        p_host_token: hostToken,
-      });
-      if (error) {
+      // The server checks the host token / guest id, deletes the row and the
+      // file; the 0007 trigger then tells every open album to drop it.
+      const result = canRemove
+        ? await removePhotoAsHost({ eventId, photoId: target.id, hostToken: hostToken ?? "" })
+        : await deleteMyPhoto({ eventId, photoId: target.id, guestId: getGuestId() });
+      if (!result.ok) {
         setRemoving(false);
-        notify("Couldn't remove the photo. Try again.");
+        notify(result.error);
         return;
       }
+      if (!canRemove) forgetMyPhoto(target.id);
     }
     // If it was open in the viewer, move on to a neighbouring photo.
     if (openId === target.id) {
@@ -162,7 +170,7 @@ export default function EventAlbum({
     onPhotoRemoved(target.id);
     setRemoving(false);
     setRemoveTarget(null);
-    notify(demo ? "Photo removed (demo only)" : "Photo removed for everyone");
+    notify(demo ? "Photo removed (demo only)" : canRemove ? "Photo removed for everyone" : "Your photo was deleted");
   }
 
   function resolveGuestUrl() {
@@ -498,7 +506,8 @@ export default function EventAlbum({
                 photos={visible}
                 freshIds={freshIds}
                 onOpen={(i) => setOpenId(visible[i].id)}
-                onRemove={canRemove ? setRemoveTarget : undefined}
+                onRemove={removeEnabled ? setRemoveTarget : undefined}
+                canRemove={canRemovePhoto}
               />
             )}
           </div>
@@ -559,6 +568,7 @@ export default function EventAlbum({
             <PhotoUploadForm
               eventId={eventId}
               defaultName={isHost ? "Host" : undefined}
+              hostToken={isHost && !demo ? hostToken : undefined}
               onUploaded={(n) => {
                 setUploadOpen(false);
                 notify(n === 1 ? "Shared to the album" : `${n} photos shared to the album`);
@@ -602,13 +612,19 @@ export default function EventAlbum({
           index={openIndex}
           onIndexChange={(i) => setOpenId(visible[i].id)}
           onClose={() => setOpenId(null)}
-          onRemove={canRemove ? setRemoveTarget : undefined}
+          onRemove={removeEnabled ? setRemoveTarget : undefined}
+          canRemove={canRemovePhoto}
+          removeLabel={(p) => (canRemove ? "Remove photo" : isMine(p) ? "Delete my photo" : "Remove photo")}
           paused={removeTarget !== null}
         />
       )}
 
       {/* Rendered after the story viewer so it sits on top of it. */}
-      <Sheet open={removeTarget !== null} onClose={() => !removing && setRemoveTarget(null)} title="Remove this photo?">
+      <Sheet
+        open={removeTarget !== null}
+        onClose={() => !removing && setRemoveTarget(null)}
+        title={removingOwn ? "Delete your photo?" : "Remove this photo?"}
+      >
         {removeTarget && (
           <div className="pb-1">
             <div className="flex items-center gap-3 rounded-[18px] border border-line bg-surface p-3">
@@ -616,7 +632,9 @@ export default function EventAlbum({
                 <Image src={photoSrc(removeTarget)} alt="" fill sizes="52px" className="object-cover" />
               </span>
               <div className="min-w-0 text-sm">
-                <div className="truncate font-semibold">{removeTarget.guest_name || "Guest"}&apos;s photo</div>
+                <div className="truncate font-semibold">
+                  {removingOwn ? "Your photo" : `${removeTarget.guest_name || "Guest"}'s photo`}
+                </div>
                 <div className="text-ink-3">It disappears for everyone, straight away. This can&apos;t be undone.</div>
               </div>
             </div>
@@ -629,7 +647,7 @@ export default function EventAlbum({
                 className="flex h-14 items-center justify-center gap-2 rounded-full bg-danger text-base font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-progress dark:text-[#0E0E10]"
               >
                 {removing ? <Spinner /> : <TrashIcon size={18} />}
-                {removing ? "Removing…" : "Remove for everyone"}
+                {removing ? "Removing…" : removingOwn ? "Delete my photo" : "Remove for everyone"}
               </button>
               <button
                 type="button"

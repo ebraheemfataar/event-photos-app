@@ -13,12 +13,14 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | 1 | V3 visual redesign + demo + local DB | ✅ Shipped (`d3af8e1`) | — |
 | **2a** | **Security quick wins** (bucket limits, uploads only to open events, EXIF check) + GIFs | ✅ Shipped (`05faee2`, migrations 0005–0006) | S |
 | **2b** | **Stop data enumeration** (server-side reads, private bucket, scoped realtime) | ✅ Shipped (`0ce1760`, migration 0007) | M |
-| **2c** | **Upload limits + guests delete their own** | Planned | M |
+| **2c** | **Upload limits + guests delete their own** | 🔧 Built (migrations 0009–0010) | M |
 | 3 | Host photo delete | ✅ Shipped (`306ed11`) | S |
 | 4 | Privacy extras: consent, storage cleanup, retention | Planned | S–M |
 | 5 | Likes & comments | Planned | M |
 | 6 | Guest access: codes, approval, pass words | Planned | L |
+| **7a** | **"Your albums on this device"** (no login stopgap for My events) | Planned | S |
 | 7 | Host accounts, My events, settings, team | Planned | L |
+| **A** | **Admin portal** (developer: all albums, close, delete, stats) | Planned, before Monetisation B | M |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
 | **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | ✅ Shipped (`d8ca440`, migration 0008) | M |
@@ -27,7 +29,7 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 
 **Build order from here:** **2c** (doubles as
 Monetisation Stage A's enforcement point) → **Monetisation A** (plan columns,
-expiry job) → **Monetisation B** (paid plans, PayFast) → Phase 4 leftovers →
+expiry job) → **Admin portal** + **7a** → **Monetisation B** (paid plans, PayFast) → Phase 4 leftovers →
 Phase 5 → Phases 6/7 (unlock Monetisation C) → the rest.
 
 **Why security comes first:** the app is live, and the read policies from
@@ -100,17 +102,16 @@ Goal: you can only see an event's photos if you know that event's id (i.e. you h
 4. Test the preview: create an event, upload from a second window (appears live), view-only link, `/demo`.
 5. Merge to `main`.
 
-### Phase 2c — Upload limits + delete own · Size M
+### Phase 2c — Upload limits + delete own · Size M · 🔧 built, verified locally
 
-- **Server-issued upload URLs.** A server action checks limits, then returns a one-time signed upload URL (`createSignedUploadUrl`) and inserts the `photos` row; the browser uploads straight to Storage. Direct anon storage inserts are then removed.
-- **Rate limits** in that server step: e.g. 50 uploads/hour per device and per IP, plus a whole-album cap (needs a small store — a Postgres table or Upstash/Vercel KV).
-- **Device id:** a random id in `localStorage`, stored on `photos.device_id`. Becomes `pass_id` in Phase 6.
-- **Host uploads** (host page "Add photos", named "Host" by default) go through the same step but must not count toward guest rate limits or the paid contributor cap: mark them by checking the host token in the server action (e.g. `photos.by_host`).
-- **Guests delete their own photos:** "⋯ → Delete my photo" in the viewer for photos with your device id (*Guest — consent, delete own, report, limits* ②), via an RPC or server action that checks the device id.
+- ✅ **Server-issued uploads** (`lib/uploadActions.ts`): `startPhotoUpload` checks the album is open, the type and the limits, writes an `upload_tickets` row and returns a one-time signed upload URL; the browser uploads; `finishPhotoUpload` checks the ticket, **sniffs the file's real bytes** (a non-image labelled `image/gif` is refused and deleted) and inserts the row. Direct anon storage/`photos` inserts removed (0010).
+- ✅ **Rate limits** (`lib/uploadRules.ts`): 50 uploads/hour per guest id, 400/hour per network (salted IP hash; venue Wi-Fi), 3000 photos per album until plans set real caps. The host is exempt.
+- ✅ **Guest id:** random id per browser (`lib/guestId.ts`); only its SHA-256 is stored (`photos.guest_hash`), never shown to others. Host uploads are `by_host` and never count as a contributor.
+- ✅ **Guests delete their own photos** ("Delete my photo" in the viewer and feed), server-checked by guest hash; host removal moved to a Server Function too. Both now delete the file through the Storage API (the old RPC only removed its record).
+- **Migrations:** 0009 (safe any time) before the release; 0010 (switch off direct uploads) only after the release is live.
+- Later (Phase 4): delete `upload_tickets` older than a day and storage files whose upload never finished.
 
-**Done when:** a script that tries 100 uploads gets cut off; a guest can delete their own photo but not anyone else's.
-
----
+**Done when:** ✅ a guest over the limit is cut off; ✅ a fake image is refused; ✅ a guest can delete their own photo but not anyone else's (`tests/server-uploads.spec.ts`).
 
 ## Phase 3 — Host photo delete · Size S · 🔧 built on `host-delete`, verified locally
 
@@ -162,6 +163,23 @@ Boards: *Flow · Login & access*, *Guest joins*, *How pass words work*, *Errors 
 - Lockout: 5 wrong pass-word tries → 60 s cooldown; pass words hashed.
 
 **DB:** `guest_passes`, `view_links`, `events.access_mode/code/pass_length`; `device_id` → `pass_id`.
+
+## Phase 7a — "Your albums on this device" · Size S
+
+A no-login stopgap for *My events* until host accounts exist.
+- The browser remembers every album created or opened with a valid host link (id, name, host link, date) in `localStorage`.
+- The landing page shows **Your albums on this device**: cover/monogram, name, date, Live/Closed, "Open as host", and "Forget" (removes it from the list only).
+- Honest limits: one device/browser only, lost if site data is cleared. The copied host link stays the real key; the host page keeps saying "save it".
+- Phase 7 later imports this list when the host signs in ("claim these albums").
+
+## Admin portal · Size M · before Monetisation B
+
+For the developer/operator, not hosts. Needed before taking payments (support, refunds, abuse).
+- **`/admin`**, signed in (decide at build time: Supabase Auth magic link limited to an `ADMIN_EMAILS` allowlist — needs `@supabase/ssr`, ask first — or a single admin password env var + signed cookie, no dependency). Never linked from the app; noindex; every page and Server Function re-checks the admin session.
+- **Albums list:** every event, newest first, search by name/id, with photos, contributors, storage used, created, last upload, Live/Closed, plan (after Monetisation A).
+- **Actions:** open as host (shows the host link), close/reopen uploads, **delete album** (photos rows, storage files including covers/posters, then the event; typed confirmation), delete a single photo.
+- **Later:** reports queue (Phase 8), payments and refunds (Monetisation B), expiry job status.
+- **Audit log** table: who did what, when.
 
 ## Phase 7 — Host accounts & settings · Size L
 

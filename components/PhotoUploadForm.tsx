@@ -3,7 +3,12 @@
 import { useRef, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/compressImage";
-import { MAX_UPLOAD_BYTES, PASSTHROUGH_TYPES, extensionFor } from "@/lib/compressOptions";
+import { MAX_UPLOAD_BYTES, PASSTHROUGH_TYPES } from "@/lib/compressOptions";
+import { finishPhotoUpload, startPhotoUpload } from "@/lib/uploadActions";
+import { getGuestId, rememberMyPhoto } from "@/lib/guestId";
+
+/** A message from the server that's safe to show as-is. */
+class UploadError extends Error {}
 import PromptChips from "@/components/PromptChips";
 import { CameraIcon, ImagesIcon } from "@/components/icons";
 import Spinner from "@/components/Spinner";
@@ -11,9 +16,12 @@ import Spinner from "@/components/Spinner";
 export default function PhotoUploadForm({
   eventId,
   defaultName = "",
+  hostToken,
   onUploaded,
 }: {
   eventId: string;
+  /** Host page: marks uploads as the host's (never rate-limited or counted as a guest). */
+  hostToken?: string;
   /** Pre-filled "Your name" (the host page passes "Host"); editable. */
   defaultName?: string;
   onUploaded?: (count: number) => void;
@@ -54,28 +62,31 @@ export default function PhotoUploadForm({
     setIsUploading(true);
     setProgress({ done: 0, total: fileList.length });
     const supabase = createSupabaseClient();
+    const guestId = getGuestId();
 
     try {
       for (const file of fileList) {
         const compressed = await compressImage(file);
-        const ext = extensionFor(compressed.type, file.name);
-        const photoId = crypto.randomUUID();
-        const path = `${eventId}/${photoId}.${ext}`;
+        // 1. The server checks limits and issues a one-time upload URL.
+        const start = await startPhotoUpload({ eventId, guestId, contentType: compressed.type, hostToken });
+        if (!start.ok) throw new UploadError(start.error);
 
+        // 2. Upload straight to storage with it.
         const { error: uploadError } = await supabase.storage
           .from("event-photos")
-          .upload(path, compressed, { contentType: compressed.type });
+          .uploadToSignedUrl(start.path, start.token, compressed, { contentType: compressed.type });
         if (uploadError) throw uploadError;
 
-        const { error: insertError } = await supabase.from("photos").insert({
-          id: photoId,
-          event_id: eventId,
-          storage_path: path,
-          guest_name: guestName.trim() || null,
-          content_type: compressed.type,
-          prompt_id: selectedPromptId,
+        // 3. The server checks the file and adds it to the album.
+        const done = await finishPhotoUpload({
+          eventId,
+          photoId: start.photoId,
+          guestId,
+          guestName,
+          promptId: selectedPromptId,
         });
-        if (insertError) throw insertError;
+        if (!done.ok) throw new UploadError(done.error);
+        rememberMyPhoto(start.photoId);
         // Drop each finished file so Retry only re-sends what's left.
         lastFilesRef.current = lastFilesRef.current.filter((f) => f !== file);
         setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
@@ -87,8 +98,8 @@ export default function PhotoUploadForm({
       } else {
         onUploaded?.(fileList.length);
       }
-    } catch {
-      setError("Upload failed. Check your connection and try again.");
+    } catch (e) {
+      setError(e instanceof UploadError ? e.message : "Upload failed. Check your connection and try again.");
     } finally {
       setIsUploading(false);
       setProgress(null);

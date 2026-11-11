@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { BASE, SEED_EVENT, SEED_HOST_TOKEN, anonUpload, localEnv, makeJpeg, waitForAlbumSubscription } from "./helpers";
+import { BASE, SEED_EVENT, SEED_HOST_TOKEN, seedPhoto, localEnv, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
 // Phase 2b (docs/ROADMAP.md, 0007_lock_down_reads.sql). Opt-in like
 // upload.spec.ts: needs the local stack + dev server, E2E_BASE_URL set.
@@ -25,7 +25,7 @@ test("anon key can no longer list events or photos", async ({ request }) => {
 
 test("bucket is private; photos are served by the app until deleted", async ({ page, request }) => {
   const { url, anonKey } = localEnv();
-  const { id, path } = await anonUpload(`Private ${Date.now()}`, await makeJpeg(page, "#2B2BFF"));
+  const { id, path } = await seedPhoto(`Private ${Date.now()}`, await makeJpeg(page, "#2B2BFF"));
 
   // The old public URL no longer works…
   const direct = await request.get(`${url}/storage/v1/object/public/event-photos/${path}`);
@@ -69,7 +69,7 @@ test("live updates: real uploads and deletes arrive, forged broadcasts are ignor
   await expect(tile(page, fakeId), "forged insert ignored").toHaveCount(0);
 
   // A real upload (by another browser) appears live.
-  const { id } = await anonUpload(`Live ${Date.now()}`, await makeJpeg(page, "#1E7A4C"));
+  const { id } = await seedPhoto(`Live ${Date.now()}`, await makeJpeg(page, "#1E7A4C"));
   await expect(tile(page, id)).toHaveCount(1, { timeout: 15_000 });
 
   // A forged "photo deleted" for that real photo must not remove it.

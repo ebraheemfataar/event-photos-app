@@ -18,9 +18,9 @@ sections 7–8 are **planned** (see [PRICING.md](PRICING.md) and
 
 ## 1. Big picture
 
-Who talks to what. Reads go through the Next.js server with a secret key;
-writes go straight from the browser to Supabase and are checked by the
-database.
+Who talks to what. Reads and photo writes go through the Next.js server with
+a secret key; the browser only sends files to one-time upload URLs the server
+issued, and calls the create_event RPC.
 
 ```mermaid
 flowchart LR
@@ -33,6 +33,7 @@ flowchart LR
         Pages["Pages /e/[id], /host/[id]<br/>(server components)"]
         PhotoRoute["/photos/[photoId]<br/>route handler"]
         Action["fetchEventPhotos<br/>Server Function"]
+        UploadFn["uploadActions<br/>start / finish / delete"]
     end
 
     subgraph Supabase
@@ -48,9 +49,12 @@ flowchart LR
     PhotoRoute -- "service-role key" --> Bucket
     Action -- "service-role key" --> DB
 
-    UP -- "anon key: upload<br/>(policy: event is open)" --> Bucket
-    UP -- "anon key: insert row<br/>(policy: event is open)" --> DB
-    UI -- "anon key: RPCs<br/>create_event, delete_event_photo" --> DB
+    UP -- "start / finish upload" --> UploadFn
+    UP -- "file to signed upload URL" --> Bucket
+    UI -- "delete own / host remove" --> UploadFn
+    UploadFn -- "service-role key<br/>limits, byte check, insert" --> DB
+    UploadFn -- "service-role key" --> Bucket
+    UI -- "anon key: RPC create_event" --> DB
 
     DB -- "trigger sends {id}" --> RT
     RT -- "event:{event id} channel" --> UI
@@ -110,12 +114,15 @@ flowchart TD
 
 ## 4. Guest uploads a photo
 
+Phase 2c: every upload goes through the server (`lib/uploadActions.ts`).
+
 ```mermaid
 sequenceDiagram
     actor Guest
     participant Form as PhotoUploadForm<br/>(on the phone)
+    participant Server as uploadActions<br/>Server Functions
     participant Storage as Supabase Storage<br/>event-photos
-    participant DB as Supabase Postgres<br/>photos table
+    participant DB as Supabase Postgres
 
     Guest->>Form: Add photos → pick name, prompt, photos
     loop Each selected file
@@ -124,16 +131,19 @@ sequenceDiagram
         else Other images
             Form->>Form: compressImage: redraw on canvas,<br/>max 1920 px / ~1.2 MB.<br/>EXIF + GPS removed.
         end
-        Form->>Storage: upload eventId/photoId.ext (anon key)
-        Note over Storage: Policy: image types only, ≤ 10 MB (0005/0006),<br/>event_is_active(folder) (0007)
-        alt rejected
-            Storage-->>Form: error
-            Form-->>Guest: "Upload failed" + Retry (only unfinished files)
-        else accepted
-            Storage-->>Form: ok
-            Form->>DB: insert photos row (anon key)
-            Note over DB: Policy: event_is_active(event_id).<br/>Trigger broadcasts {id} (see §5).
-            DB-->>Form: ok
+        Form->>Server: startPhotoUpload(event, guest id, type, host token?)
+        Note over Server: Album open? Allowed type?<br/>≤ 50/h per guest, ≤ 400/h per network,<br/>album cap (host exempt). Writes upload_tickets.
+        alt refused
+            Server-->>Form: message ("shared a lot in the last hour"…)
+            Form-->>Guest: Message + Retry
+        else ok
+            Server-->>Form: one-time signed upload URL
+            Form->>Storage: upload the file to it
+            Form->>Server: finishPhotoUpload(photo id, guest id, name, prompt)
+            Note over Server: Ticket matches this guest, unused, < 1 h.<br/>First bytes really are that image type<br/>(else the file is deleted).
+            Server->>DB: insert photos row (guest_hash, by_host)
+            Note over DB: Trigger broadcasts {id} (see §5).
+            Server-->>Form: ok (photo id remembered on this phone)
         end
     end
     Form-->>Guest: Sheet closes, "Shared to the album"
@@ -170,30 +180,33 @@ sequenceDiagram
 
 ---
 
-## 6. Host removes a photo
+## 6. Removing a photo (host: any; guest: their own)
 
 ```mermaid
 sequenceDiagram
-    actor Host
-    participant Album as Host album<br/>(viewer or feed)
-    participant DB as Supabase<br/>delete_event_photo RPC
+    actor Person as Host or guest
+    participant Album as Album<br/>(viewer or feed)
+    participant Server as uploadActions<br/>Server Functions
     participant Others as Every other open album
 
-    Host->>Album: Tap trash on a photo
-    Album-->>Host: "Remove this photo?" sheet
+    Note over Album: Trash shows on every photo for the host,<br/>and on photos shared from this phone for a guest.
+    Person->>Album: Tap trash
+    Album-->>Person: "Remove this photo?" / "Delete your photo?"
     alt "Keep it"
-        Host->>Album: Cancel, nothing changes
-    else "Remove for everyone"
-        Host->>Album: Confirm
-        Album->>DB: rpc delete_event_photo(photo_id, host_token)
-        Note over DB: Checks the token against the event (0004).<br/>Deletes the row + storage record.
-        alt wrong token or error
-            DB-->>Album: error
-            Album-->>Host: "Couldn't remove the photo. Try again."
+        Person->>Album: Cancel, nothing changes
+    else Confirm
+        alt host
+            Album->>Server: removePhotoAsHost(photo, host token)
+        else guest
+            Album->>Server: deleteMyPhoto(photo, guest id)
+        end
+        Note over Server: Checks the host token / that the photo's<br/>guest_hash is this guest's. Deletes the row,<br/>then the file through the Storage API.
+        alt not allowed or error
+            Server-->>Album: message
         else ok
-            DB-->>Album: ok
-            Album-->>Host: Photo gone, viewer moves to the next one,<br/>"Photo removed for everyone"
-            DB-->>Others: Trigger → photo_deleted {id} → verified → removed (§5)
+            Server-->>Album: ok
+            Album-->>Person: Photo gone, viewer moves on
+            Server-->>Others: Trigger → photo_deleted {id} → verified → removed (§5)
             Note over Album,Others: /photos/[id] now returns 404<br/>(cached copies can live up to 1 h).
         end
     end

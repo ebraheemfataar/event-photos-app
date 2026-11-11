@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { BASE, SEED_EVENT, SEED_HOST_TOKEN, anonUpload, makeJpeg, waitForAlbumSubscription } from "./helpers";
+import { BASE, SEED_EVENT, SEED_HOST_TOKEN, seedPhoto, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
 // Phase 3: host removes photos. Opt-in like the other E2E specs (local stack +
 // dev server, E2E_BASE_URL set). Tests share the seed event with parallel
@@ -25,7 +25,7 @@ test("host removes a photo from the viewer; it disappears for guests too", async
   await openAlbum(host, HOST_URL);
   await openAlbum(guest, GUEST_URL);
 
-  const { id } = await anonUpload(`Remove me ${Date.now()}`, await makeJpeg(host, "#C01F2F"));
+  const { id } = await seedPhoto(`Remove me ${Date.now()}`, await makeJpeg(host, "#C01F2F"));
   await expect(tile(host, id)).toHaveCount(1, { timeout: 15_000 });
   await expect(tile(guest, id)).toHaveCount(1, { timeout: 15_000 });
 
@@ -43,7 +43,7 @@ test("host removes a photo from the viewer; it disappears for guests too", async
 test("feed remove button, and 'Keep it' cancels", async ({ page }) => {
   await openAlbum(page, HOST_URL);
   const name = `Feed remove ${Date.now()}`;
-  const { id } = await anonUpload(name, await makeJpeg(page, "#7B4BFF"));
+  const { id } = await seedPhoto(name, await makeJpeg(page, "#7B4BFF"));
   await page.getByRole("tab", { name: "Feed", exact: true }).click();
   await expect(tile(page, id)).toHaveCount(1, { timeout: 15_000 });
 
@@ -59,7 +59,7 @@ test("feed remove button, and 'Keep it' cancels", async ({ page }) => {
 });
 
 test("guests and wrong-token visitors get no remove buttons", async ({ page }) => {
-  const { id } = await anonUpload(`No remove ${Date.now()}`, await makeJpeg(page, "#FFC21A"));
+  const { id } = await seedPhoto(`No remove ${Date.now()}`, await makeJpeg(page, "#FFC21A"));
   for (const url of [GUEST_URL, `${BASE}/host/${SEED_EVENT}?t=${randomUUID()}`]) {
     await openAlbum(page, url);
     await expect(tile(page, id)).toHaveCount(1, { timeout: 15_000 });
