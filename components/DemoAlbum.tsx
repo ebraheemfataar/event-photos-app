@@ -66,7 +66,7 @@ export default function DemoAlbum({
           type="button"
           onClick={() => setPickerOpen(true)}
           aria-label={`Change theme (now ${themeName(theme)})`}
-          className="fixed bottom-[calc(96px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface pl-2 pr-4 text-sm font-semibold text-ink shadow-2 transition-transform active:scale-95 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0 whitespace-nowrap"
+          className="fixed bottom-[calc(96px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface pl-2 pr-4 text-sm font-semibold text-ink shadow-2 transition-transform focus-visible:[box-shadow:var(--ring)] active:scale-95 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0 whitespace-nowrap"
         >
           <span aria-hidden="true" className="flex -space-x-1.5">
             {swatches.map((c) => (

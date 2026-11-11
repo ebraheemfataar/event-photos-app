@@ -1,18 +1,26 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { compressImage } from "@/lib/compressImage";
 import { MAX_UPLOAD_BYTES, PASSTHROUGH_TYPES } from "@/lib/compressOptions";
 import { finishPhotoUpload, startPhotoUpload } from "@/lib/uploadActions";
 import { getGuestId, rememberMyPhoto } from "@/lib/guestId";
+import PromptChips from "@/components/PromptChips";
+import { CameraIcon, CloseIcon, ImagesIcon, PlusIcon } from "@/components/icons";
+import Spinner from "@/components/Spinner";
 
 /** A message from the server that's safe to show as-is. */
 class UploadError extends Error {}
-import PromptChips from "@/components/PromptChips";
-import { CameraIcon, ImagesIcon } from "@/components/icons";
-import Spinner from "@/components/Spinner";
 
+/** Most photos staged at once (well under the 50/hour guest limit). */
+const MAX_STAGED = 30;
+
+type Staged = { id: string; file: File; url: string };
+
+/** Composer: pick photos (camera or library) → they're staged as previews →
+ * add a name / prompt → "Share" uploads them through the server flow
+ * (lib/uploadActions.ts). Nothing uploads until Share is tapped. */
 export default function PhotoUploadForm({
   eventId,
   defaultName = "",
@@ -20,53 +28,85 @@ export default function PhotoUploadForm({
   onUploaded,
 }: {
   eventId: string;
-  /** Host page: marks uploads as the host's (never rate-limited or counted as a guest). */
-  hostToken?: string;
   /** Pre-filled "Your name" (the host page passes "Host"); editable. */
   defaultName?: string;
+  /** Host page: marks uploads as the host's (never rate-limited or counted as a guest). */
+  hostToken?: string;
   onUploaded?: (count: number) => void;
 }) {
   const [guestName, setGuestName] = useState(defaultName);
   const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+  const [staged, setStaged] = useState<Staged[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
-  // Files from the last attempt, so the error card can offer Retry.
-  const lastFilesRef = useRef<File[]>([]);
+  // Every preview URL made, so they're all released when the sheet closes.
+  const urlsRef = useRef(new Set<string>());
 
-  async function handleFiles(files: FileList | File[] | null) {
+  useEffect(() => {
+    const urls = urlsRef.current;
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, []);
+
+  function release(item: Staged) {
+    URL.revokeObjectURL(item.url);
+    urlsRef.current.delete(item.url);
+  }
+
+  function addFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     // GIFs skip compression (to keep the animation), so they can exceed the
-    // bucket's size cap. Skip those up front and upload the rest.
+    // bucket's size cap. Leave those out with a note.
     const picked = Array.from(files);
     const tooBig = picked.filter((f) => PASSTHROUGH_TYPES.includes(f.type) && f.size > MAX_UPLOAD_BYTES);
-    const fileList = picked.filter((f) => !tooBig.includes(f));
-    const skippedNote =
-      tooBig.length === 0
-        ? null
-        : `${tooBig.length === 1 ? "1 GIF was" : `${tooBig.length} GIFs were`} over ${
-            MAX_UPLOAD_BYTES / 1024 / 1024
-          } MB and ${tooBig.length === 1 ? "was" : "were"} skipped.`;
-    setNotice(null);
-    setError(null);
-    lastFilesRef.current = fileList;
-    if (fileList.length === 0) {
-      setNotice(skippedNote);
-      resetInputs();
-      return;
-    }
+    const ok = picked.filter((f) => !tooBig.includes(f));
+    const room = Math.max(0, MAX_STAGED - staged.length);
+    const added = ok.slice(0, room).map((file) => {
+      const url = URL.createObjectURL(file);
+      urlsRef.current.add(url);
+      return { id: crypto.randomUUID(), file, url };
+    });
 
+    const notes: string[] = [];
+    if (tooBig.length) {
+      notes.push(
+        `${tooBig.length === 1 ? "1 GIF was" : `${tooBig.length} GIFs were`} over ${MAX_UPLOAD_BYTES / 1024 / 1024} MB and ${
+          tooBig.length === 1 ? "was" : "were"
+        } skipped.`
+      );
+    }
+    if (ok.length > room) notes.push(`Up to ${MAX_STAGED} photos at a time. Share these, then add more.`);
+    setNotice(notes.join(" ") || null);
+    setError(null);
+    setStaged((s) => [...s, ...added]);
+    resetInputs();
+  }
+
+  function removeStaged(id: string) {
+    setStaged((s) => {
+      const item = s.find((x) => x.id === id);
+      if (item) release(item);
+      return s.filter((x) => x.id !== id);
+    });
+  }
+
+  async function share() {
+    const queue = staged;
+    if (queue.length === 0 || isUploading) return;
+    setError(null);
+    setNotice(null);
     setIsUploading(true);
-    setProgress({ done: 0, total: fileList.length });
+    setProgress({ done: 0, total: queue.length });
     const supabase = createSupabaseClient();
     const guestId = getGuestId();
+    let shared = 0;
 
     try {
-      for (const file of fileList) {
-        const compressed = await compressImage(file);
+      for (const item of queue) {
+        const compressed = await compressImage(item.file);
         // 1. The server checks limits and issues a one-time upload URL.
         const start = await startPhotoUpload({ eventId, guestId, contentType: compressed.type, hostToken });
         if (!start.ok) throw new UploadError(start.error);
@@ -87,23 +127,21 @@ export default function PhotoUploadForm({
         });
         if (!done.ok) throw new UploadError(done.error);
         rememberMyPhoto(start.photoId);
-        // Drop each finished file so Retry only re-sends what's left.
-        lastFilesRef.current = lastFilesRef.current.filter((f) => f !== file);
+
+        // Drop each finished photo, so Share again only sends what's left.
+        shared++;
+        release(item);
+        setStaged((s) => s.filter((x) => x.id !== item.id));
         setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       }
       setSelectedPromptId(null);
-      if (skippedNote) {
-        // Keep the sheet open so the guest sees what was skipped.
-        setNotice(`${fileList.length === 1 ? "1 photo" : `${fileList.length} photos`} shared. ${skippedNote}`);
-      } else {
-        onUploaded?.(fileList.length);
-      }
+      onUploaded?.(shared);
     } catch (e) {
-      setError(e instanceof UploadError ? e.message : "Upload failed. Check your connection and try again.");
+      const reason = e instanceof UploadError ? e.message : "Upload failed. Check your connection and try again.";
+      setError(shared > 0 ? `${shared} shared. ${reason}` : reason);
     } finally {
       setIsUploading(false);
       setProgress(null);
-      resetInputs();
     }
   }
 
@@ -113,9 +151,56 @@ export default function PhotoUploadForm({
   }
 
   const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+  const count = staged.length;
 
   return (
     <div className="flex w-full flex-col gap-4">
+      {count > 0 && (
+        <div>
+          <div className="mb-2 flex items-baseline justify-between">
+            <span className="text-sm font-semibold">
+              {count === 1 ? "1 photo" : `${count} photos`} ready
+            </span>
+            {!isUploading && count < MAX_STAGED && (
+              <button
+                type="button"
+                onClick={() => libraryInputRef.current?.click()}
+                className="flex h-9 items-center gap-1 rounded-full px-2 text-[13px] font-semibold text-ink-2 hover:bg-surface-3"
+              >
+                <PlusIcon size={15} /> Add more
+              </button>
+            )}
+          </div>
+          <ul aria-label="Photos to share" className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {staged.map((item, i) => (
+              <li key={item.id} className="relative h-[92px] w-[74px] shrink-0 overflow-hidden rounded-[14px] bg-surface-3">
+                <span className="absolute inset-0 flex items-center justify-center text-ink-3">
+                  <ImagesIcon size={20} />
+                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.url}
+                  alt={`Photo ${i + 1}`}
+                  className="relative h-full w-full object-cover"
+                  // HEIC can't preview outside Safari: keep the placeholder.
+                  onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                />
+                {!isUploading && (
+                  <button
+                    type="button"
+                    onClick={() => removeStaged(item.id)}
+                    aria-label={`Remove photo ${i + 1}`}
+                    className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
+                  >
+                    <CloseIcon size={14} />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <label className="flex h-13 items-center gap-2.5 rounded-[14px] border border-line-strong bg-surface-2 px-4 transition-colors focus-within:border-ink">
         <span className="whitespace-nowrap text-sm text-ink-3">Your name</span>
         <input
@@ -125,7 +210,8 @@ export default function PhotoUploadForm({
           placeholder="optional"
           maxLength={60}
           autoComplete="given-name"
-          className="h-full min-w-0 flex-1 bg-transparent text-right text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-3 focus-visible:shadow-none"
+          disabled={isUploading}
+          className="h-full min-w-0 flex-1 bg-transparent text-right text-base font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-3 focus-visible:[box-shadow:none]"
         />
       </label>
 
@@ -154,17 +240,9 @@ export default function PhotoUploadForm({
       )}
 
       {error && (
-        <div role="alert" className="flex items-center gap-2.5 rounded-[14px] bg-danger-bg py-2.5 pl-3 pr-2.5 text-[13px] text-danger">
-          <span className="flex-1">{error}</span>
-          {/* Only set when an upload fails, so there's always a file left to retry. */}
-          <button
-            type="button"
-            onClick={() => handleFiles(lastFilesRef.current)}
-            className="h-11 shrink-0 rounded-full border border-current px-4 text-[13px] font-semibold"
-          >
-            Retry
-          </button>
-        </div>
+        <p role="alert" className="rounded-[14px] bg-danger-bg px-3 py-2.5 text-[13px] text-danger">
+          {error}
+        </p>
       )}
 
       {notice && (
@@ -174,27 +252,51 @@ export default function PhotoUploadForm({
       )}
 
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          disabled={isUploading}
-          aria-busy={isUploading}
-          onClick={() => cameraInputRef.current?.click()}
-          className={`flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] ${isUploading ? "cursor-progress" : "disabled:opacity-50"}`}
-        >
-          {isUploading ? "Uploading…" : "Take photo"}
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
-            {isUploading ? <Spinner /> : <CameraIcon size={18} strokeWidth={2.2} />}
-          </span>
-        </button>
-        <button
-          type="button"
-          disabled={isUploading}
-          onClick={() => libraryInputRef.current?.click()}
-          className="flex h-[52px] items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[15px] font-semibold transition-colors hover:bg-surface-3 disabled:opacity-50"
-        >
-          <ImagesIcon size={18} />
-          Choose from library
-        </button>
+        {count > 0 ? (
+          <button
+            type="button"
+            onClick={share}
+            disabled={isUploading}
+            aria-busy={isUploading}
+            className={`flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98] ${isUploading ? "cursor-progress" : ""}`}
+          >
+            {isUploading ? "Sharing…" : error ? `Try again · ${count === 1 ? "1 photo" : `${count} photos`}` : `Share ${count === 1 ? "photo" : `${count} photos`}`}
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
+              {isUploading ? <Spinner /> : <ArrowUp />}
+            </span>
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex h-14 items-center justify-between rounded-full bg-btn pl-[22px] pr-2 text-base font-semibold text-btn-ink transition-opacity hover:opacity-90 active:scale-[0.98]"
+            >
+              Take photo
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-ink">
+                <CameraIcon size={18} strokeWidth={2.2} />
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => libraryInputRef.current?.click()}
+              className="flex h-[52px] items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[15px] font-semibold transition-colors hover:bg-surface-3"
+            >
+              <ImagesIcon size={18} />
+              Choose from library
+            </button>
+          </>
+        )}
+        {count > 0 && !isUploading && (
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="flex h-[52px] items-center justify-center gap-2 rounded-full border border-line-strong bg-surface text-[15px] font-semibold transition-colors hover:bg-surface-3"
+          >
+            <CameraIcon size={18} />
+            Take another
+          </button>
+        )}
         <p className="mt-1 text-center text-xs text-ink-3">
           Resized before upload · everyone at the event can see them
         </p>
@@ -206,7 +308,7 @@ export default function PhotoUploadForm({
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => addFiles(e.target.files)}
       />
       <input
         ref={libraryInputRef}
@@ -214,8 +316,16 @@ export default function PhotoUploadForm({
         accept="image/*"
         multiple
         className="hidden"
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => addFiles(e.target.files)}
       />
     </div>
+  );
+}
+
+function ArrowUp() {
+  return (
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
+    </svg>
   );
 }

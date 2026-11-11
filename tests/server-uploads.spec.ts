@@ -40,6 +40,7 @@ test.describe("end-to-end", () => {
     await page.getByRole("button", { name: "Add photos" }).first().click();
     if (name) await page.getByPlaceholder("optional").fill(name);
     await page.locator('input[type="file"][multiple]').setInputFiles(file);
+    await page.getByRole("button", { name: "Share photo" }).click();
   }
 
   const service = () => {

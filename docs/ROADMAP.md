@@ -236,7 +236,7 @@ count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md
 - **Hosted migrations are applied by hand.** Consider `npx supabase link` + `db push` so the dashboard tracks them.
 - **Custom handle:** the album handle still comes from the event name.
 - **Logo:** `app/icon.svg` / `app/apple-icon.tsx` are a placeholder mark; swap for the final logo.
-- **Upload composer polish:** preview of picked photos, one prompt for the batch, posting progress in the feed (*Upload composer*).
+- **Upload composer polish:** ✅ picked photos are staged as previews (remove / add more / take another) and only upload on "Share", after name and prompt. Still to do: posting progress shown in the feed (*Upload composer*).
 - **Selfie prompt** has no demo photo yet (`lib/demoPhotos.ts`).
 - **Vercel Hobby limits:** 5K image optimisations / month; watch usage once real events run.
 - **Custom domain** (Vercel production checklist).

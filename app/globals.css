@@ -372,10 +372,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Visible focus ring on every interactive element. */
-:where(a, button, input, textarea, select, [tabindex]):focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
+/* Visible focus ring on every interactive element. In the base layer so a
+   utility can opt out (e.g. an input inside a field whose border already
+   shows focus); unlayered CSS would beat every utility. */
+@layer base {
+  :where(a, button, input, textarea, select, [tabindex]):focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+  }
 }
 
 /* New photos arriving live. */

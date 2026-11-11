@@ -22,10 +22,17 @@ test("guest upload works and never loads code from a CDN", async ({ page }) => {
   const name = `E2E ${Date.now()}`;
 
   await page.getByRole("button", { name: "Add photos" }).first().click();
-  await page.getByPlaceholder("optional").fill(name);
   await page
     .locator('input[type="file"][multiple]')
     .setInputFiles({ name: "e2e.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(page) });
+
+  // Picking only stages the photo: nothing is sent until Share.
+  await expect(page.getByRole("img", { name: "Photo 1" })).toBeVisible();
+  await page.waitForTimeout(800);
+  await expect(page.getByText("Shared to the album")).toHaveCount(0);
+  // Name (and prompt) can be filled in after picking.
+  await page.getByPlaceholder("optional").fill(name);
+  await page.getByRole("button", { name: "Share photo" }).click();
 
   // Sheet closes and the success toast shows; the photo arrives live.
   await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 30_000 });
@@ -48,6 +55,7 @@ test("host can add photos from the host page, named 'Host' by default", async ({
   await page
     .locator('input[type="file"][multiple]')
     .setInputFiles({ name: "host.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(page, "#1F3A2B") });
+  await page.getByRole("button", { name: "Share photo" }).click();
 
   await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("tab", { name: "Feed", exact: true }).click();
@@ -92,6 +100,7 @@ test("animated GIF uploads unchanged and stays animated", async ({ page }) => {
   await page
     .locator('input[type="file"][multiple]')
     .setInputFiles({ name: "party.gif", mimeType: "image/gif", buffer: gif });
+  await page.getByRole("button", { name: "Share photo" }).click();
   await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 30_000 });
 
   // It arrives live, and the album serves back the exact original bytes:
@@ -117,4 +126,22 @@ test("GIFs over 10 MB are skipped with a message", async ({ page }) => {
     .locator('input[type="file"][multiple]')
     .setInputFiles({ name: "huge.gif", mimeType: "image/gif", buffer: big });
   await expect(page.getByText("1 GIF was over 10 MB and was skipped.")).toBeVisible();
+});
+
+test("staged photos can be removed before sharing", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/e/${SEED_EVENT}`);
+  await page.getByRole("button", { name: "Add photos" }).first().click();
+  const input = page.locator('input[type="file"][multiple]');
+  await input.setInputFiles([
+    { name: "a.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(page, "#111111") },
+    { name: "b.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(page, "#222222") },
+  ]);
+  await expect(page.getByText("2 photos ready")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Share 2 photos" })).toBeVisible();
+  await page.getByRole("button", { name: "Remove photo 1" }).click();
+  await expect(page.getByText("1 photo ready")).toBeVisible();
+  await page.getByRole("button", { name: "Remove photo 1" }).click();
+  // Back to the picker; nothing was uploaded.
+  await expect(page.getByRole("button", { name: "Take photo" })).toBeVisible();
 });
