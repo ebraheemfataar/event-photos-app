@@ -61,9 +61,14 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
             </thead>
             <tbody>
               {rows.map((e) => (
-                <tr key={e.id} className="border-b border-line last:border-0 hover:bg-surface-2">
+                // The name's link stretches over the whole row (after:inset-0), so
+                // anywhere on the row opens the album, with normal link behaviour.
+                <tr key={e.id} className="relative cursor-pointer border-b border-line last:border-0 hover:bg-surface-2 has-[a:focus-visible]:bg-surface-2">
                   <td className="max-w-[260px] px-4 py-3">
-                    <Link href={`/admin/events/${e.id}`} className="block truncate font-semibold hover:underline">
+                    <Link
+                      href={`/admin/events/${e.id}`}
+                      className="block truncate font-semibold after:absolute after:inset-0 after:content-[''] focus-visible:[box-shadow:none]"
+                    >
                       {e.name}
                     </Link>
                     <span className="mono block truncate text-[10px] normal-case text-ink-3">{e.id}</span>
