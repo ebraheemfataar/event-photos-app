@@ -35,6 +35,8 @@ writeFileSync(
     `SUPABASE_SERVICE_ROLE_KEY=${serviceKey}`,
     "# Lets you (and tests) call /api/cron/expire locally. Not a real secret.",
     "CRON_SECRET=local-cron-secret",
+    "# Signs you in to http://localhost:3000/admin locally. Not a real secret.",
+    "ADMIN_PASSWORD=local-admin-password",
     "",
   ].join("\n")
 );

@@ -114,7 +114,10 @@ test.describe("end-to-end", () => {
     expect((await request.get(`${BASE}/api/cron/expire`, { headers: { Authorization: "Bearer wrong" } })).status()).toBe(401);
 
     const ev = await newEvent(`Expired job ${Date.now()}`);
-    await service().from("events").update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("id", ev.id);
+    // The job handles the 25 most overdue albums first. Make this one older
+    // than any left over from earlier runs (later runs go further back).
+    const longAgo = new Date(Date.UTC(2000, 0, 1) - (Date.now() - Date.UTC(2026, 0, 1)));
+    await service().from("events").update({ expires_at: longAgo.toISOString() }).eq("id", ev.id);
     const res = await request.get(`${BASE}/api/cron/expire`, { headers: { Authorization: `Bearer ${localEnv().cronSecret}` } });
     expect(res.status()).toBe(200);
     const body = await res.json();

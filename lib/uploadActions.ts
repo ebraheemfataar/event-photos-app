@@ -1,11 +1,11 @@
 "use server";
 
-import { createHash, createHmac, randomUUID } from "node:crypto";
-import { headers } from "next/headers";
+import { createHash, randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isEventHost, isUuid } from "@/lib/data";
 import { getPromptById } from "@/lib/prompts";
 import { isExpired } from "@/lib/plans";
+import { networkHash } from "@/lib/requestIp";
 import {
   ALBUM_MAX_PHOTOS,
   GUEST_UPLOADS_PER_HOUR,
@@ -26,14 +26,6 @@ type Failure = { ok: false; error: string };
 
 const BUCKET = "event-photos";
 const hashGuest = (guestId: string) => createHash("sha256").update(`guest:${guestId}`).digest("hex");
-
-async function networkHash(): Promise<string> {
-  const h = await headers();
-  const ip = (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "unknown").trim();
-  // Salted with a server secret so stored hashes can't be reversed to IPs.
-  const salt = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "local";
-  return createHmac("sha256", salt).update(`ip:${ip}`).digest("hex");
-}
 
 const hourAgo = () => new Date(Date.now() - 60 * 60 * 1000).toISOString();
 

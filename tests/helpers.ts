@@ -27,6 +27,7 @@ export function localEnv() {
     anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
     cronSecret: env.CRON_SECRET,
+    adminPassword: env.ADMIN_PASSWORD,
   };
 }
 

@@ -20,7 +20,7 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | 6 | Guest access: codes, approval, pass words | Planned | L |
 | **7a** | **"Your albums on this device"** (no login stopgap for My events) | Planned | S |
 | 7 | Host accounts, My events, settings, team | Planned | L |
-| **A** | **Admin portal** (developer: all albums, close, delete, stats) | Planned, before Monetisation B | M |
+| **A** | **Admin portal** (developer: all albums, close, delete, stats) | 🔧 Built (migration 0012) | M |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
 | **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | ✅ Shipped (`d8ca440`, migration 0008) | M |
@@ -172,14 +172,15 @@ A no-login stopgap for *My events* until host accounts exist.
 - Honest limits: one device/browser only, lost if site data is cleared. The copied host link stays the real key; the host page keeps saying "save it".
 - Phase 7 later imports this list when the host signs in ("claim these albums").
 
-## Admin portal · Size M · before Monetisation B
+## Admin portal · Size M · 🔧 built (migration 0012)
 
 For the developer/operator, not hosts. Needed before taking payments (support, refunds, abuse).
-- **`/admin`**, signed in (decide at build time: Supabase Auth magic link limited to an `ADMIN_EMAILS` allowlist — needs `@supabase/ssr`, ask first — or a single admin password env var + signed cookie, no dependency). Never linked from the app; noindex; every page and Server Function re-checks the admin session.
-- **Albums list:** every event, newest first, search by name/id, with photos, contributors, storage used, created, last upload, Live/Closed, plan (after Monetisation A).
-- **Actions:** open as host (shows the host link), close/reopen uploads, **delete album** (photos rows, storage files including covers/posters, then the event; typed confirmation), delete a single photo.
+- ✅ **`/admin`**, signed in with one `ADMIN_PASSWORD` (chosen: no dependency) → signed httpOnly cookie, 12 h; lockout after 10 wrong passwords per network in 15 min. Never linked from the app; noindex; every page and Server Function re-checks the admin session.
+- ✅ **Albums list:** every event, newest first, search by name/id, with photos, contributors, storage used, created, last upload, Live/Closed/Expired, plan; totals at the top.
+- ✅ **Actions:** open as host / guest view, close/reopen uploads, **delete album** (typed name; files then rows), delete a single photo.
 - **Later:** reports queue (Phase 8), payments and refunds (Monetisation B), expiry job status.
-- **Audit log** table: who did what, when.
+- ✅ **Audit log** (`admin_audit`): sign-ins (and failures), every action, shown per album.
+- Later: switch to Supabase Auth (magic link) when host accounts arrive, so admins and hosts share one login system.
 
 ## Phase 7 — Host accounts & settings · Size L
 
