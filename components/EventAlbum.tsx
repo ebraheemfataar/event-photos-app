@@ -9,7 +9,7 @@ import EventCover from "@/components/EventCover";
 import EventInfoSheet from "@/components/EventInfoSheet";
 import EditEventSheet from "@/components/EditEventSheet";
 import PlanSheet, { PlanChip } from "@/components/PlanSheet";
-import type { Plan, PlanStatus } from "@/lib/plans";
+import type { AddOn, Plan, PlanStatus } from "@/lib/plans";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
 import { deleteMyPhoto, removePhotoAsHost } from "@/lib/uploadActions";
@@ -62,6 +62,7 @@ export type EventAlbumProps = {
   /** Host only: plan, usage and deletion date (0011) + all plans to compare. */
   planStatus?: PlanStatus | null;
   plans?: Plan[];
+  addOns?: AddOn[];
 };
 
 type View = "grid" | "feed";
@@ -79,6 +80,7 @@ export default function EventAlbum({
   onDemoEdit,
   planStatus,
   plans = [],
+  addOns = [],
 }: EventAlbumProps) {
   const { id: eventId, name: eventName, is_active: isActive, created_at: createdAt } = event;
   const theme = event.theme ?? DEFAULT_THEME;
@@ -601,7 +603,7 @@ export default function EventAlbum({
       </Sheet>
 
       {isHost && planStatus && (
-        <PlanSheet open={planOpen} onClose={() => setPlanOpen(false)} status={planStatus} plans={plans} />
+        <PlanSheet open={planOpen} onClose={() => setPlanOpen(false)} status={planStatus} plans={plans} addOns={addOns} />
       )}
 
       <EventInfoSheet

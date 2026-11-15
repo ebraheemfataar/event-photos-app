@@ -5,7 +5,7 @@ import type { Photo } from "@/lib/types";
 import EventAlbum, { type AlbumMode } from "./EventAlbum";
 import Sheet from "./Sheet";
 import ThemePicker from "./ThemePicker";
-import { DEMO_PLANS, demoEvent } from "@/lib/demoPhotos";
+import { DEMO_ADD_ONS, DEMO_PLANS, demoEvent } from "@/lib/demoPhotos";
 import { planStatus } from "@/lib/plans";
 import type { ValidDetails } from "@/lib/eventDetails";
 import { THEMES, themeName, type ThemeId } from "@/lib/themes";
@@ -65,6 +65,7 @@ export default function DemoAlbum({
           contributors: new Set(photos.map((p) => p.guest_name)).size,
         })}
         plans={DEMO_PLANS}
+        addOns={DEMO_ADD_ONS}
       />
 
       <div data-theme={theme}>

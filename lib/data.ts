@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Event, Photo } from "@/lib/types";
-import { planStatus, type Plan, type PlanStatus } from "@/lib/plans";
+import { planStatus, type AddOn, type Plan, type PlanStatus } from "@/lib/plans";
 
 // Server-side reads. Each function takes the id from the URL / caller and
 // returns only that record (or that event's photos) — the "knowing the link
@@ -26,6 +26,16 @@ export const getPlans = cache(async (): Promise<Plan[]> => {
     .select("id, name, price_cents, max_contributors, retention_days, shows_badge, sort_order")
     .order("sort_order")
     .returns<Plan[]>();
+  return data ?? [];
+});
+
+/** Add-ons (extra guests / retention), from the `add_ons` table (0011). */
+export const getAddOns = cache(async (): Promise<AddOn[]> => {
+  const { data } = await createServiceClient()
+    .from("add_ons")
+    .select("id, name, price_cents, extra_contributors, extra_retention_days, stackable, sort_order")
+    .order("sort_order")
+    .returns<AddOn[]>();
   return data ?? [];
 });
 

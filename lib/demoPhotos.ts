@@ -1,5 +1,5 @@
 import type { Event, Photo } from "@/lib/types";
-import type { Plan } from "@/lib/plans";
+import type { AddOn, Plan } from "@/lib/plans";
 
 // Mock album for /demo and the landing page. Photos are from Unsplash
 // (free to use under the Unsplash License). Every URL shares one query string
@@ -36,6 +36,11 @@ export function demoEvent(createdAt: string): Event {
     legacy_uncapped: false,
   };
 }
+
+export const DEMO_ADD_ONS: AddOn[] = [
+  { id: "keep_1yr", name: "Keep for 1 more year", price_cents: 4900, extra_contributors: 0, extra_retention_days: 365, stackable: false, sort_order: 1 },
+  { id: "guests_50", name: "+50 guests", price_cents: 7900, extra_contributors: 50, extra_retention_days: 0, stackable: true, sort_order: 2 },
+];
 
 /** Plan sheet contents for /demo?as=host (no database). Mirrors the seeded
  * `plans` table in 0011_plans.sql. */

@@ -12,9 +12,21 @@ export type Plan = {
   sort_order: number;
 };
 
+export type AddOn = {
+  id: string;
+  name: string;
+  price_cents: number;
+  extra_contributors: number;
+  extra_retention_days: number;
+  stackable: boolean;
+  sort_order: number;
+};
+
 export type PlanStatus = {
   planId: string;
   planName: string;
+  /** The plan's price; what the host has paid for this event so far. */
+  priceCents: number;
   photos: number;
   contributors: number;
   /** null = no limit (Unlimited plan, or an event from before pricing). */
@@ -42,6 +54,7 @@ export function planStatus(
   return {
     planId: plan.id,
     planName: plan.name,
+    priceCents: event.legacy_uncapped ? 0 : plan.price_cents,
     photos: usage.photos,
     contributors: usage.contributors,
     contributorCap: cap,
@@ -50,6 +63,21 @@ export function planStatus(
     legacy: event.legacy_uncapped,
     showsBadge: plan.shows_badge,
   };
+}
+
+/** What an upgrade costs: the new plan minus what's already been paid for
+ * this event (PRICING.md: "charging only the difference"). Never negative. */
+export function upgradePriceCents(paidCents: number, target: Plan): number {
+  return Math.max(0, target.price_cents - paidCents);
+}
+
+/** "ok", "near" (≤10% of guest spots or ≤7 days left) or "full". */
+export function planMood(s: PlanStatus): "ok" | "near" | "full" {
+  if (s.contributorCap !== null && s.contributors >= s.contributorCap) return "full";
+  const left = s.contributorCap === null ? Infinity : s.contributorCap - s.contributors;
+  if (left <= Math.max(2, Math.ceil((s.contributorCap ?? 0) * 0.1))) return "near";
+  if (s.daysLeft !== null && s.daysLeft <= 7) return "near";
+  return "ok";
 }
 
 /** "R149", "R0" — whole rands, prices are stored in cents. */

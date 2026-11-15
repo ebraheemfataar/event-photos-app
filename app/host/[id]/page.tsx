@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { getEvent, getEventPhotos, getPlanStatus, getPlans, isEventHost } from "@/lib/data";
+import { getAddOns, getEvent, getEventPhotos, getPlanStatus, getPlans, isEventHost } from "@/lib/data";
 import PhotoGallery from "@/components/PhotoGallery";
 
 // Host links carry the token: keep them out of search engines.
@@ -34,10 +34,11 @@ export default async function HostPage({
     headersList.get("x-forwarded-proto") ?? (isLocalHost ? "http" : "https");
   const guestUrl = host ? `${protocol}://${host}/e/${event.id}` : "";
 
-  const [photos, planStatus, plans] = await Promise.all([
+  const [photos, planStatus, plans, addOns] = await Promise.all([
     getEventPhotos(event.id),
     isHost ? getPlanStatus(event) : null,
     isHost ? getPlans() : [],
+    isHost ? getAddOns() : [],
   ]);
 
   return (
@@ -49,6 +50,7 @@ export default async function HostPage({
       hostToken={isHost ? t : undefined}
       planStatus={planStatus}
       plans={plans}
+      addOns={addOns}
     />
   );
 }

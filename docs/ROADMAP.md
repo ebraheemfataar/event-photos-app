@@ -238,6 +238,7 @@ count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md
 - **Logo:** `app/icon.svg` / `app/apple-icon.tsx` are a placeholder mark; swap for the final logo.
 - **Upload composer polish:** ✅ picked photos are staged as previews (remove / add more / take another) and only upload on "Share", after name and prompt. Still to do: posting progress shown in the feed (*Upload composer*).
 - **Selfie prompt** has no demo photo yet (`lib/demoPhotos.ts`).
+- **Albums over 1,000 photos only show the newest 1,000:** `getEventPhotos` hits PostgREST's default row limit, so the grid and the profile counts stop at 1,000. Fix with paged loading (infinite scroll) alongside thumbnails, before launch.
 - **Vercel Hobby limits:** 5K image optimisations / month; watch usage once real events run.
 - **Custom domain** (Vercel production checklist).
 - **Videos:** the photo-limit board mentions "videos count as 3 photos"; not designed further.

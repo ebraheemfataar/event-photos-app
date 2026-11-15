@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { formatRand, isExpired, planStatus, type Plan } from "../lib/plans";
+import { formatRand, isExpired, planMood, planStatus, upgradePriceCents, type Plan } from "../lib/plans";
 import { BASE, localEnv, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
 // Monetisation Stage A (0011_plans.sql, lib/plans.ts, app/api/cron/expire).
@@ -18,6 +18,20 @@ test("planStatus: cap, add-on slots, days left, legacy", () => {
   expect(planStatus({ ...event, legacy_uncapped: true }, FREE, { photos: 0, contributors: 0 }, now).contributorCap).toBeNull();
   expect(planStatus({ ...event, expires_at: null }, UNLIMITED, { photos: 0, contributors: 0 }, now)).toMatchObject({ contributorCap: null, daysLeft: null });
   expect(planStatus({ ...event, expires_at: new Date(now - DAY).toISOString() }, FREE, { photos: 0, contributors: 0 }, now).daysLeft).toBe(0);
+});
+
+test("upgrade price is the difference, never negative; mood thresholds", () => {
+  const MEDIUM: Plan = { ...FREE, id: "medium", name: "Medium", price_cents: 39900, max_contributors: 300, retention_days: 365 };
+  expect(upgradePriceCents(14900, MEDIUM)).toBe(25000);
+  expect(upgradePriceCents(0, MEDIUM)).toBe(39900);
+  expect(upgradePriceCents(79900, MEDIUM)).toBe(0);
+  const now = Date.parse("2026-11-12T10:00:00Z");
+  const ev = { plan: "free", expires_at: new Date(now + 20 * DAY).toISOString(), extra_contributors: 0, legacy_uncapped: false };
+  expect(planMood(planStatus(ev, FREE, { photos: 0, contributors: 4 }, now))).toBe("ok");
+  expect(planMood(planStatus(ev, FREE, { photos: 0, contributors: 18 }, now))).toBe("near");
+  expect(planMood(planStatus(ev, FREE, { photos: 0, contributors: 20 }, now))).toBe("full");
+  expect(planMood(planStatus({ ...ev, expires_at: new Date(now + 3 * DAY).toISOString() }, FREE, { photos: 0, contributors: 1 }, now))).toBe("near");
+  expect(planMood(planStatus({ ...ev, legacy_uncapped: true, expires_at: null }, FREE, { photos: 0, contributors: 500 }, now))).toBe("ok");
 });
 
 test("money and expiry helpers", () => {
@@ -69,8 +83,11 @@ test.describe("end-to-end", () => {
     await expect(chip).toBeVisible();
     await chip.click();
     const sheet = page.getByRole("dialog", { name: "Your plan" });
-    await expect(sheet.getByText("1 of 20")).toBeVisible();
-    await expect(sheet.getByText("R149")).toBeVisible();
+    await expect(sheet.getByText("of 20 guests")).toBeVisible();
+    await expect(sheet.getByText("19 spots left")).toBeVisible();
+    // Tap a plan: the upgrade price shows, payment isn't live yet.
+    await sheet.getByRole("radio", { name: /Medium/ }).click();
+    await expect(sheet.getByText("Upgrade to Medium · R399")).toBeVisible();
     await expect(sheet.getByRole("button", { name: "Upgrades coming soon" })).toBeDisabled();
   });
 
@@ -78,7 +95,7 @@ test.describe("end-to-end", () => {
     const ev = await newEvent(`Legacy test ${Date.now()}`);
     await service().from("events").update({ legacy_uncapped: true, expires_at: null }).eq("id", ev.id);
     await page.goto(ev.hostUrl);
-    await expect(page.getByRole("button", { name: /^Plan: Free · 0 guests$/ }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Plan: Early album · no limit$/ }).first()).toBeVisible();
   });
 
   test("uploads stop once an album is past its deletion date", async ({ page }) => {
