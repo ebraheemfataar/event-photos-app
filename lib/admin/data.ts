@@ -23,14 +23,37 @@ export type AdminEventRow = {
 
 export const ADMIN_PAGE_SIZE = 50;
 
-export async function listAdminEvents(search: string, page: number): Promise<{ rows: AdminEventRow[]; total: number }> {
+export const ADMIN_STATUSES = ["all", "live", "closed", "expired"] as const;
+export type AdminStatus = (typeof ADMIN_STATUSES)[number];
+export const ADMIN_SORTS = ["created", "name", "photos", "guests", "storage", "last_upload"] as const;
+export type AdminSort = (typeof ADMIN_SORTS)[number];
+
+export type AdminListQuery = { q: string; page: number; status: AdminStatus; sort: AdminSort; desc: boolean };
+
+/** Reads ?q=&page=&status=&sort=&dir= safely (anything unknown → defaults). */
+export function parseAdminQuery(p: Record<string, string | undefined>): AdminListQuery {
+  const status = (ADMIN_STATUSES as readonly string[]).includes(p.status ?? "") ? (p.status as AdminStatus) : "all";
+  const sort = (ADMIN_SORTS as readonly string[]).includes(p.sort ?? "") ? (p.sort as AdminSort) : "created";
+  return { q: (p.q ?? "").slice(0, 100), page: Math.max(1, Number(p.page) || 1), status, sort, desc: p.dir !== "asc" };
+}
+
+export async function listAdminEvents(query: AdminListQuery): Promise<{ rows: AdminEventRow[]; total: number }> {
   const { data } = await createServiceClient().rpc("admin_event_list", {
-    p_search: search.trim() || null,
+    p_search: query.q.trim() || null,
     p_limit: ADMIN_PAGE_SIZE,
-    p_offset: Math.max(0, page - 1) * ADMIN_PAGE_SIZE,
+    p_offset: (query.page - 1) * ADMIN_PAGE_SIZE,
+    p_status: query.status,
+    p_sort: query.sort,
+    p_desc: query.desc,
   });
   const rows = (data as AdminEventRow[] | null) ?? [];
   return { rows, total: Number(rows[0]?.total_count ?? 0) };
+}
+
+export async function adminStatusCounts(search: string): Promise<Record<AdminStatus, number>> {
+  const { data } = await createServiceClient().rpc("admin_event_counts", { p_search: search.trim() || null });
+  const r = (data as { all_count: number; live: number; closed: number; expired: number }[] | null)?.[0];
+  return { all: Number(r?.all_count ?? 0), live: Number(r?.live ?? 0), closed: Number(r?.closed ?? 0), expired: Number(r?.expired ?? 0) };
 }
 
 export async function adminTotals(): Promise<{ albums: number; live: number; photos: number }> {
@@ -51,7 +74,7 @@ export async function getAdminEvent(eventId: string): Promise<AdminEventDetail |
   if (!isUuid(eventId)) return null;
   const supabase = createServiceClient();
   const [{ data: rows }, { data: token }] = await Promise.all([
-    supabase.rpc("admin_event_list", { p_search: eventId, p_limit: 1, p_offset: 0 }),
+    supabase.rpc("admin_event_list", { p_search: eventId, p_limit: 1 }),
     supabase.from("events").select("host_token").eq("id", eventId).maybeSingle<{ host_token: string }>(),
   ]);
   const row = (rows as AdminEventRow[] | null)?.[0];

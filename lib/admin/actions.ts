@@ -88,6 +88,39 @@ export async function adminDeleteEvent(eventId: string, typedName: string): Prom
   return { ok: true };
 }
 
+const BULK_MAX = 50;
+
+/** Close or reopen uploads on several albums at once. */
+export async function adminBulkSetUploads(eventIds: string[], open: boolean): Promise<Result> {
+  if (!(await isAdmin())) return NOT_ADMIN;
+  const ids = [...new Set(eventIds)].filter(isUuid).slice(0, BULK_MAX);
+  if (ids.length === 0) return { ok: false, error: "Select some albums first." };
+  const { error } = await createServiceClient().from("events").update({ is_active: Boolean(open) }).in("id", ids);
+  if (error) return { ok: false, error: "Couldn't update those albums." };
+  for (const id of ids) await audit(open ? "uploads_reopened" : "uploads_closed", id, { bulk: true });
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/** Delete several albums for good. The caller must type "delete <n>". */
+export async function adminBulkDelete(eventIds: string[], typed: string): Promise<Result & { deleted?: number }> {
+  if (!(await isAdmin())) return NOT_ADMIN;
+  const ids = [...new Set(eventIds)].filter(isUuid).slice(0, BULK_MAX);
+  if (ids.length === 0) return { ok: false, error: "Select some albums first." };
+  if (String(typed ?? "").trim().toLowerCase() !== `delete ${ids.length}`) {
+    return { ok: false, error: `Type “delete ${ids.length}” to confirm.` };
+  }
+  const { data: events } = await createServiceClient().from("events").select("id, name").in("id", ids);
+  let deleted = 0;
+  for (const event of events ?? []) {
+    const r = await deleteEventCompletely(event.id);
+    await audit(r.ok ? "album_deleted" : "album_delete_failed", event.id, { name: event.name, files: r.files, bulk: true });
+    if (r.ok) deleted++;
+  }
+  revalidatePath("/admin");
+  return deleted === (events?.length ?? 0) ? { ok: true, deleted } : { ok: false, error: `Deleted ${deleted}; some couldn't be deleted. Try again.` };
+}
+
 export async function adminDeletePhoto(eventId: string, photoId: string): Promise<Result> {
   if (!(await isAdmin())) return NOT_ADMIN;
   if (!isUuid(eventId) || !isUuid(photoId)) return { ok: false, error: "Unknown photo." };

@@ -117,6 +117,39 @@ test.describe("end-to-end", () => {
     await expect(page).toHaveURL(`${BASE}/admin/login`);
   });
 
+  test("status tabs, select all, bulk close, bulk delete", async ({ page }) => {
+    const tag = `Bulk ${Date.now()}`;
+    const a = await newEvent(`${tag} A`);
+    const b = await newEvent(`${tag} B`);
+    await signIn(page);
+    await page.goto(`${BASE}/admin?q=${encodeURIComponent(tag)}`);
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
+
+    await page.getByRole("checkbox", { name: "Select all on this page" }).check();
+    await expect(page.getByText("2 selected")).toBeVisible();
+    await page.getByRole("toolbar", { name: "Bulk actions" }).getByRole("button", { name: "Close uploads" }).click();
+    await expect(page.getByText("2 selected")).toHaveCount(0);
+    const { data: closed } = await service().from("events").select("is_active").in("id", [a.id, b.id]);
+    expect(closed?.every((r) => r.is_active === false)).toBe(true);
+
+    // The Closed tab (keeping the search) now lists both.
+    await page.getByRole("link", { name: /^Closed/ }).click();
+    await expect(page).toHaveURL(/status=closed/);
+    await expect(page.getByRole("link", { name: `${tag} A` })).toBeVisible();
+
+    await page.getByRole("checkbox", { name: "Select all on this page" }).check();
+    await page.getByRole("button", { name: "Delete…" }).click();
+    const go = page.getByRole("button", { name: "Delete for good" });
+    await page.getByLabel("Type to confirm delete").fill("delete 1");
+    await expect(go).toBeDisabled();
+    await page.getByLabel("Type to confirm delete").fill("delete 2");
+    await go.click();
+    await expect(page.getByText("No albums match")).toBeVisible();
+    const { data: left } = await service().from("events").select("id").in("id", [a.id, b.id]);
+    expect(left).toEqual([]);
+  });
+
   test("admin pages are noindex and the session cookie is httpOnly + scoped to /admin", async ({ page, context }) => {
     await signIn(page);
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);

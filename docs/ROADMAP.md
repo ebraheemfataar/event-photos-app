@@ -176,7 +176,8 @@ A no-login stopgap for *My events* until host accounts exist.
 
 For the developer/operator, not hosts. Needed before taking payments (support, refunds, abuse).
 - ✅ **`/admin`**, signed in with one `ADMIN_PASSWORD` (chosen: no dependency) → signed httpOnly cookie, 12 h; lockout after 10 wrong passwords per network in 15 min. Never linked from the app; noindex; every page and Server Function re-checks the admin session.
-- ✅ **Albums list:** every event, newest first, search by name/id, with photos, contributors, storage used, created, last upload, Live/Closed/Expired, plan; totals at the top.
+- ✅ **Albums table** (0013): status tabs with counts (All / Live / Closed / Expired), search, sortable columns (name, photos, guests, storage, last upload), whole row clickable, ⋮ menu per row, checkboxes with bulk close / reopen / delete (type "delete N"), numbered pages. Filtering and sorting run in the database; the view lives in the URL.
+- Backlog: the live-update test in `host-delete.spec.ts` occasionally times out under a full parallel run (seed album now has many photos).
 - ✅ **Actions:** open as host / guest view, close/reopen uploads, **delete album** (typed name; files then rows), delete a single photo.
 - **Later:** reports queue (Phase 8), payments and refunds (Monetisation B), expiry job status.
 - ✅ **Audit log** (`admin_audit`): sign-ins (and failures), every action, shown per album.
