@@ -78,7 +78,7 @@ test.describe("end-to-end", () => {
     await signIn(page);
     await page.getByLabel("Search albums").fill(name);
     await page.getByRole("button", { name: "Search" }).click();
-    await page.getByRole("link", { name }).click();
+    await page.getByRole("link", { name, exact: true }).click();
     await expect(page.getByRole("heading", { name })).toBeVisible();
     // The buttons only work once the page script has loaded (slow while the
     // dev server compiles for other tests in parallel).
@@ -124,7 +124,8 @@ test.describe("end-to-end", () => {
     await signIn(page);
     await page.goto(`${BASE}/admin?q=${encodeURIComponent(tag)}`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
+    await expect(page.getByText("1–2 of 2", { exact: true })).toBeVisible();
+    await expect(page.getByText("2 results")).toBeVisible();
 
     await page.getByRole("checkbox", { name: "Select all on this page" }).check();
     await expect(page.getByText("2 selected")).toBeVisible();

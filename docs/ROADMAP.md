@@ -176,7 +176,8 @@ A no-login stopgap for *My events* until host accounts exist.
 
 For the developer/operator, not hosts. Needed before taking payments (support, refunds, abuse).
 - ✅ **`/admin`**, signed in with one `ADMIN_PASSWORD` (chosen: no dependency) → signed httpOnly cookie, 12 h; lockout after 10 wrong passwords per network in 15 min. Never linked from the app; noindex; every page and Server Function re-checks the admin session.
-- ✅ **Albums table** (0013): status tabs with counts (All / Live / Closed / Expired), search, sortable columns (name, photos, guests, storage, last upload), whole row clickable, ⋮ menu per row, checkboxes with bulk close / reopen / delete (type "delete N"), numbered pages. Filtering and sorting run in the database; the view lives in the URL.
+- ✅ **Overview cards** (0013 `admin_stats`, can be hidden): albums (+this week), photos (+24 h), guests who shared, storage vs the 1 GB free plan, active today, live, expiring in 7 days, uploads refused in 24 h.
+- ✅ **Albums table** (0013): status tabs with counts (All / Live / Closed / Expired), search (Ctrl/⌘K), Sort and Filter (plan) menus with filter chips, rows per page (10/25/50/100), sortable sticky columns (name, photos, guests, storage, last upload), whole row clickable, ⋮ menu per row, checkboxes with bulk close / reopen / delete (type "delete N"), numbered pages. Filtering and sorting run in the database; the view lives in the URL.
 - Backlog: the live-update test in `host-delete.spec.ts` occasionally times out under a full parallel run (seed album now has many photos).
 - ✅ **Actions:** open as host / guest view, close/reopen uploads, **delete album** (typed name; files then rows), delete a single photo.
 - **Later:** reports queue (Phase 8), payments and refunds (Monetisation B), expiry job status.

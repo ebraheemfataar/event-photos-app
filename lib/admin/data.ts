@@ -2,69 +2,64 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/data";
 import type { Photo } from "@/lib/types";
+import type { AdminEventRow, AdminListQuery, AdminPlanFilter, AdminStatus } from "@/lib/admin/query";
+
+export type { AdminEventRow } from "@/lib/admin/query";
 
 // Admin-only reads. Callers must have checked the admin session first
 // (requireAdmin); these use the service-role key and cover every album.
 
-export type AdminEventRow = {
-  id: string;
-  name: string;
-  created_at: string;
-  is_active: boolean;
-  plan: string;
-  expires_at: string | null;
-  legacy_uncapped: boolean;
-  photos: number;
-  contributors: number;
-  last_upload: string | null;
-  storage_bytes: number;
-  total_count: number;
-};
-
-export const ADMIN_PAGE_SIZE = 50;
-
-export const ADMIN_STATUSES = ["all", "live", "closed", "expired"] as const;
-export type AdminStatus = (typeof ADMIN_STATUSES)[number];
-export const ADMIN_SORTS = ["created", "name", "photos", "guests", "storage", "last_upload"] as const;
-export type AdminSort = (typeof ADMIN_SORTS)[number];
-
-export type AdminListQuery = { q: string; page: number; status: AdminStatus; sort: AdminSort; desc: boolean };
-
-/** Reads ?q=&page=&status=&sort=&dir= safely (anything unknown → defaults). */
-export function parseAdminQuery(p: Record<string, string | undefined>): AdminListQuery {
-  const status = (ADMIN_STATUSES as readonly string[]).includes(p.status ?? "") ? (p.status as AdminStatus) : "all";
-  const sort = (ADMIN_SORTS as readonly string[]).includes(p.sort ?? "") ? (p.sort as AdminSort) : "created";
-  return { q: (p.q ?? "").slice(0, 100), page: Math.max(1, Number(p.page) || 1), status, sort, desc: p.dir !== "asc" };
-}
 
 export async function listAdminEvents(query: AdminListQuery): Promise<{ rows: AdminEventRow[]; total: number }> {
   const { data } = await createServiceClient().rpc("admin_event_list", {
     p_search: query.q.trim() || null,
-    p_limit: ADMIN_PAGE_SIZE,
-    p_offset: (query.page - 1) * ADMIN_PAGE_SIZE,
+    p_limit: query.per,
+    p_offset: (query.page - 1) * query.per,
     p_status: query.status,
     p_sort: query.sort,
     p_desc: query.desc,
+    p_plan: query.plan,
   });
   const rows = (data as AdminEventRow[] | null) ?? [];
   return { rows, total: Number(rows[0]?.total_count ?? 0) };
 }
 
-export async function adminStatusCounts(search: string): Promise<Record<AdminStatus, number>> {
-  const { data } = await createServiceClient().rpc("admin_event_counts", { p_search: search.trim() || null });
+export async function adminStatusCounts(search: string, plan: AdminPlanFilter | null): Promise<Record<AdminStatus, number>> {
+  const { data } = await createServiceClient().rpc("admin_event_counts", { p_search: search.trim() || null, p_plan: plan });
   const r = (data as { all_count: number; live: number; closed: number; expired: number }[] | null)?.[0];
   return { all: Number(r?.all_count ?? 0), live: Number(r?.live ?? 0), closed: Number(r?.closed ?? 0), expired: Number(r?.expired ?? 0) };
 }
 
-export async function adminTotals(): Promise<{ albums: number; live: number; photos: number }> {
-  const supabase = createServiceClient();
-  const head = { count: "exact" as const, head: true };
-  const [albums, live, photos] = await Promise.all([
-    supabase.from("events").select("id", head),
-    supabase.from("events").select("id", head).eq("is_active", true),
-    supabase.from("photos").select("id", head),
-  ]);
-  return { albums: albums.count ?? 0, live: live.count ?? 0, photos: photos.count ?? 0 };
+export type AdminStats = {
+  albums: number;
+  albums_7d: number;
+  live: number;
+  active_24h: number;
+  expiring_7d: number;
+  photos: number;
+  photos_24h: number;
+  contributors: number;
+  storage_bytes: number;
+  uploads_refused_24h: number;
+};
+
+/** Headline numbers for the admin page (admin_stats RPC, 0013). */
+export async function adminStats(): Promise<AdminStats> {
+  const { data } = await createServiceClient().rpc("admin_stats");
+  const r = ((data as Record<string, number | string>[] | null)?.[0] ?? {}) as Record<string, number | string>;
+  const n = (k: keyof AdminStats) => Number(r[k] ?? 0);
+  return {
+    albums: n("albums"),
+    albums_7d: n("albums_7d"),
+    live: n("live"),
+    active_24h: n("active_24h"),
+    expiring_7d: n("expiring_7d"),
+    photos: n("photos"),
+    photos_24h: n("photos_24h"),
+    contributors: n("contributors"),
+    storage_bytes: n("storage_bytes"),
+    uploads_refused_24h: n("uploads_refused_24h"),
+  };
 }
 
 export type AdminEventDetail = AdminEventRow & { host_token: string };
