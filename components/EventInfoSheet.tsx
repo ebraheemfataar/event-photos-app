@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import type { Event } from "@/lib/types";
 import { displayDomain, eventImageSrc, formatEventDate } from "@/lib/eventDetails";
 import Sheet from "@/components/Sheet";

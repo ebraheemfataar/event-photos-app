@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/SafeImage";
 import type { Event } from "@/lib/types";
 import { eventImageSrc, monogram } from "@/lib/eventDetails";
 import { PlusIcon } from "@/components/icons";

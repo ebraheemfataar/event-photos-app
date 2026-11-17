@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
+import Image from "@/components/SafeImage";
+import ImageViewer from "@/components/ImageViewer";
 import { useRouter } from "next/navigation";
 import type { Event } from "@/lib/types";
 import { createSupabaseClient } from "@/lib/supabase/client";
@@ -49,6 +50,8 @@ export default function EditEventSheet({
   const [saving, setSaving] = useState(false);
   const [busyImage, setBusyImage] = useState<EventImageKind | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Tapping the cover / poster thumbnail opens it full size.
+  const [viewing, setViewing] = useState<EventImageKind | null>(null);
   // A picked cover goes through CoverCropper before uploading.
   const [cropFile, setCropFile] = useState<File | null>(null);
 
@@ -137,7 +140,11 @@ export default function EditEventSheet({
             </div>
           ) : (
             <div className="mt-2 flex items-center gap-4">
-              <span className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-surface-2">
+              <Thumb
+                shape="circle"
+                onView={cover && busyImage !== "cover" ? () => setViewing("cover") : undefined}
+                label="View cover full size"
+              >
                 {cover ? (
                   <Image src={cover} alt="Current cover" fill sizes="72px" className="object-cover" />
                 ) : (
@@ -146,7 +153,7 @@ export default function EditEventSheet({
                   </span>
                 )}
                 {busyImage === "cover" && <BusyOverlay />}
-              </span>
+              </Thumb>
               <ImageButtons
                 kind="cover"
                 has={Boolean(cover)}
@@ -161,10 +168,14 @@ export default function EditEventSheet({
         <section aria-label="Poster or invitation">
           <Label hint="Optional. Your invitation or poster, shown in full when guests tap the circle.">Poster or invitation</Label>
           <div className="mt-2 flex items-center gap-4">
-            <span className="relative flex h-[90px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 text-ink-3">
+            <Thumb
+              shape="poster"
+              onView={poster && busyImage !== "poster" ? () => setViewing("poster") : undefined}
+              label="View poster full size"
+            >
               {poster ? <Image src={poster} alt="Current poster" fill sizes="72px" className="object-cover" /> : busyImage !== "poster" && <ImagesIcon size={22} />}
               {busyImage === "poster" && <BusyOverlay />}
-            </span>
+            </Thumb>
             <ImageButtons
               kind="poster"
               has={Boolean(poster)}
@@ -277,7 +288,47 @@ export default function EditEventSheet({
           {saving ? "Saving…" : "Save details"}
         </button>
       </div>
+      {viewing && (cover || poster) && (
+        <ImageViewer
+          src={(viewing === "cover" ? cover : poster) ?? ""}
+          alt={viewing === "cover" ? "Cover photo" : "Poster"}
+          onClose={() => setViewing(null)}
+        />
+      )}
     </Sheet>
+  );
+}
+
+/** Cover / poster thumbnail. With onView it's a button that opens the image
+ * full size (a small magnifier hints that it can be tapped). */
+function Thumb({
+  shape,
+  onView,
+  label,
+  children,
+}: {
+  shape: "circle" | "poster";
+  onView?: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  const box = `relative flex shrink-0 items-center justify-center overflow-hidden border border-line bg-surface-2 text-ink-3 ${
+    shape === "circle" ? "h-[72px] w-[72px] rounded-full" : "h-[90px] w-[72px] rounded-xl"
+  }`;
+  if (!onView) return <span className={box}>{children}</span>;
+  return (
+    <button type="button" onClick={onView} aria-label={label} className={`group ${box} cursor-zoom-in`}>
+      {children}
+      <span
+        aria-hidden="true"
+        className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-white transition-transform group-hover:scale-110"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+          <circle cx="10.5" cy="10.5" r="6" />
+          <path d="m20 20-5-5" />
+        </svg>
+      </span>
+    </button>
   );
 }
 

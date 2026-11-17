@@ -145,6 +145,40 @@ test.describe("end-to-end", () => {
     expect((await page.request.get(`${BASE}${second}`)).status()).toBe(200);
   });
 
+  test("Edit event: tap cover / poster to view them full size; images survive an optimiser failure", async ({ page }) => {
+    const ev = await newEvent(`Viewer test ${Date.now()}`);
+    const { url, serviceKey } = localEnv();
+    const service = createClient(url, serviceKey);
+    const jpeg = await makeJpeg(page, "#884422");
+    const cover = `${ev.id}/_event/cover-${randomUUID()}.jpg`;
+    const poster = `${ev.id}/_event/poster-${randomUUID()}.jpg`;
+    for (const p of [cover, poster]) await service.storage.from("event-photos").upload(p, jpeg, { contentType: "image/jpeg" });
+    await service.from("events").update({ cover_path: cover, poster_path: poster }).eq("id", ev.id);
+
+    // Break Next's image optimiser: covers must still show (original file).
+    await page.route("**/_next/image**", (r) => r.fulfill({ status: 500, body: "broken" }));
+    await phone(page);
+    await page.goto(ev.hostUrl);
+    const circle = page.locator('button[aria-label^="About"] img').first();
+    await expect.poll(() => circle.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), { timeout: 10_000 }).toBe(true);
+    expect(await circle.getAttribute("src")).toContain("/media/");
+
+    await page.getByRole("button", { name: "Edit event", exact: true }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Edit event" });
+    await sheet.getByRole("button", { name: "View cover full size" }).click();
+    const viewer = page.getByRole("dialog", { name: "Cover photo" });
+    await expect(viewer.getByRole("img", { name: "Cover photo" })).toBeVisible();
+    await expect(viewer.getByRole("link", { name: "Open original ↗" })).toHaveAttribute("href", new RegExp(`/media/${ev.id}/cover/`));
+    await page.keyboard.press("Escape");
+    await expect(viewer).toHaveCount(0);
+    await expect(sheet, "Esc closes only the viewer").toBeVisible();
+
+    await sheet.getByRole("button", { name: "View poster full size" }).click();
+    await expect(page.getByRole("dialog", { name: "Poster" }).getByRole("img", { name: "Poster" })).toBeVisible();
+    await page.getByRole("dialog", { name: "Poster" }).getByRole("button", { name: "Close" }).click();
+    await expect(sheet).toBeVisible();
+  });
+
   test("guests and wrong tokens get no edit controls; no cover shows the monogram", async ({ page }) => {
     const ev = await newEvent("Jo & Kim's Party");
     await phone(page);
