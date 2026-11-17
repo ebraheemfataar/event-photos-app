@@ -34,6 +34,14 @@ export function planSummary(s: PlanStatus): string {
   return [s.planName, guests, time].join(" · ");
 }
 
+/** Short usage line for the host sidebar: "4/20 guests · 26 days left". */
+export function planUsageLine(s: PlanStatus): string {
+  if (s.legacy) return "Early album · no limit";
+  const guests = s.contributorCap === null ? `${s.contributors} guests` : `${s.contributors}/${s.contributorCap} guests`;
+  const time = s.expiresAt === null ? "kept forever" : s.daysLeft === 1 ? "1 day left" : `${s.daysLeft} days left`;
+  return `${guests} · ${time}`;
+}
+
 /** Host-only chip under the album title; opens the plan sheet. */
 export function PlanChip({ status, onClick }: { status: PlanStatus; onClick: () => void }) {
   const mood = planMood(status);

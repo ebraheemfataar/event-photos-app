@@ -8,7 +8,8 @@ import { formatEventDate, type ValidDetails } from "@/lib/eventDetails";
 import EventCover from "@/components/EventCover";
 import EventInfoSheet from "@/components/EventInfoSheet";
 import EditEventSheet from "@/components/EditEventSheet";
-import PlanSheet, { PlanChip } from "@/components/PlanSheet";
+import PlanSheet, { PlanChip, planUsageLine } from "@/components/PlanSheet";
+import { planMood } from "@/lib/plans";
 import type { AddOn, Plan, PlanStatus } from "@/lib/plans";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
@@ -35,6 +36,7 @@ import {
   LogoIcon,
   PlusIcon,
   PencilIcon,
+  PlanIcon,
   QrIcon,
   ShareIcon,
   TrashIcon,
@@ -335,6 +337,20 @@ export default function EventAlbum({
         {showEdit && (
           <SideItem onClick={() => setEditOpen(true)} icon={<PencilIcon size={22} />}>
             Edit event
+          </SideItem>
+        )}
+        {isHost && planStatus && (
+          <SideItem onClick={() => setPlanOpen(true)} icon={<PlanIcon size={22} />}>
+            <span className="min-w-0 leading-tight">
+              <span className="block">
+                Plan · {planStatus.legacy ? "Early" : planStatus.planName}
+              </span>
+              <span
+                className={`block truncate text-xs font-normal ${planMood(planStatus) === "ok" ? "text-ink-3" : "text-warn-ink"}`}
+              >
+                {planUsageLine(planStatus)}
+              </span>
+            </span>
           </SideItem>
         )}
         <span className="flex-1" />

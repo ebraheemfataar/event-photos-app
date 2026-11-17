@@ -167,6 +167,14 @@ export const TrashIcon = (p: IconProps) => (
   </Svg>
 );
 
+/** Plan / pricing: a ticket. */
+export const PlanIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.5 2.5 0 0 0 0 5v2a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-2a2.5 2.5 0 0 0 0-5z" />
+    <path d="M14 5v14" strokeDasharray="2 2.5" />
+  </Svg>
+);
+
 export const PrinterIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M7 9V3.5h10V9" />

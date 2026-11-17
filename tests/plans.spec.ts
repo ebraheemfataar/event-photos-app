@@ -91,6 +91,19 @@ test.describe("end-to-end", () => {
     await expect(sheet.getByRole("button", { name: "Upgrades coming soon" })).toBeDisabled();
   });
 
+  test("desktop host sidebar has a Plan item that opens the plan sheet", async ({ page }) => {
+    const ev = await newEvent(`Sidebar plan ${Date.now()}`);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(ev.hostUrl);
+    const item = page.getByRole("button", { name: /^Plan · Free/ });
+    await expect(item).toContainText("0/20 guests · 29 days left");
+    await item.click();
+    await expect(page.getByRole("dialog", { name: "Your plan" })).toBeVisible();
+    // Guests never see it.
+    await page.goto(ev.guestUrl);
+    await expect(page.getByRole("button", { name: /^Plan · / })).toHaveCount(0);
+  });
+
   test("events from before pricing have no cap and no expiry", async ({ page }) => {
     const ev = await newEvent(`Legacy test ${Date.now()}`);
     await service().from("events").update({ legacy_uncapped: true, expires_at: null }).eq("id", ev.id);
