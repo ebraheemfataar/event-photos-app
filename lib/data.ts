@@ -29,6 +29,18 @@ export const getPlans = cache(async (): Promise<Plan[]> => {
   return data ?? [];
 });
 
+/** Plans + add-ons for public pages (landing pricing). Never throws: if the
+ * database can't be reached (e.g. a local build without keys) it returns
+ * empty lists and the page leaves the pricing section out. */
+export async function getPricing(): Promise<{ plans: Plan[]; addOns: AddOn[] }> {
+  try {
+    const [plans, addOns] = await Promise.all([getPlans(), getAddOns()]);
+    return { plans, addOns };
+  } catch {
+    return { plans: [], addOns: [] };
+  }
+}
+
 /** Add-ons (extra guests / retention), from the `add_ons` table (0011). */
 export const getAddOns = cache(async (): Promise<AddOn[]> => {
   const { data } = await createServiceClient()

@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import CreateEventForm from "@/components/CreateEventForm";
+import PricingSection from "@/components/PricingSection";
+import { getPricing } from "@/lib/data";
 import { unsplash } from "@/lib/demoPhotos";
 import ThemeToggle from "@/components/ThemeToggle";
 import { CameraIcon, ChevronRightIcon, ImagesIcon, LogoIcon, PlusIcon, QrIcon } from "@/components/icons";
@@ -19,7 +21,12 @@ const STEPS = [
   { n: "03", title: "Watch photos roll in", body: "Uploads land in the live album instantly.", bg: "#1E7A4C", ink: "#FFFFFF", Icon: ImagesIcon },
 ];
 
-export default function Home() {
+// Pre-built and refreshed hourly, so the pricing cards follow the `plans`
+// table without a database call on every visit.
+export const revalidate = 3600;
+
+export default async function Home() {
+  const { plans, addOns } = await getPricing();
   return (
     <div className="flex flex-1 flex-col">
       <header className="glass sticky top-0 z-20 flex h-16 items-center justify-between bg-glass pl-[18px] pr-3.5 md:h-[76px] md:px-10">
@@ -36,6 +43,14 @@ export default function Home() {
           >
             How it works
           </a>
+          {plans.length > 0 && (
+            <a
+              href="#pricing"
+              className="inline-flex h-11 items-center rounded-full px-4 text-sm font-medium transition-colors hover:bg-surface-3"
+            >
+              Pricing
+            </a>
+          )}
           <ThemeToggle className="border border-line bg-surface" />
         </div>
       </header>
@@ -145,6 +160,8 @@ export default function Home() {
             ))}
           </ol>
         </section>
+
+        <PricingSection plans={plans} addOns={addOns} />
       </main>
 
       <footer className="mt-12 flex items-center justify-between border-t border-line px-[22px] py-6 md:mt-16 md:px-10">

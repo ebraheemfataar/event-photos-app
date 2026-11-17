@@ -91,6 +91,18 @@ test.describe("end-to-end", () => {
     await expect(sheet.getByRole("button", { name: "Upgrades coming soon" })).toBeDisabled();
   });
 
+  test("home page shows the plans from the database; only Free can be started", async ({ page }) => {
+    await page.goto(`${BASE}/`);
+    await page.getByRole("link", { name: "Pricing" }).click();
+    const pricing = page.locator("#pricing");
+    await expect(pricing.getByText("R149")).toBeVisible();
+    await expect(pricing.getByText("R399")).toBeVisible();
+    await expect(pricing.getByText("Up to 20 guests sharing")).toBeVisible();
+    await expect(pricing.getByText("Coming soon")).toHaveCount(3);
+    await pricing.getByRole("link", { name: "Start free" }).click();
+    await expect(page).toHaveURL(/#create$/);
+  });
+
   test("desktop host sidebar has a Plan item that opens the plan sheet", async ({ page }) => {
     const ev = await newEvent(`Sidebar plan ${Date.now()}`);
     await page.setViewportSize({ width: 1280, height: 800 });

@@ -167,6 +167,12 @@ export const TrashIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const CheckIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" />
+  </Svg>
+);
+
 /** Plan / pricing: a ticket. */
 export const PlanIcon = (p: IconProps) => (
   <Svg {...p}>

@@ -45,7 +45,7 @@ Further decisions made while planning:
 - ✅ Host page shows plan, contributors used / cap, and the deletion date (plan chip → "Your plan" sheet with all plans; upgrade button disabled until Stage B).
 - ✅ Uploads are refused once an album is past `expires_at`.
 
-**Where pricing shows up (agreed):** a pricing section on the landing page (four plan cards + "Compare plans"), a full `/pricing` page (comparison, add-ons, FAQ), the plan chip/sheet in the host album, and a plan picker in the create form (Free pre-selected). The landing section, `/pricing` and the picker ship in Stage B with checkout.
+**Where pricing shows up (agreed):** a pricing section on the landing page (four plan cards + "Compare plans"), a full `/pricing` page (comparison, add-ons, FAQ), the plan chip/sheet in the host album, and a plan picker in the create form (Free pre-selected). ✅ The landing section is live early (plans from the database; Free is "Start free", paid plans say "Coming soon" until checkout exists), and the host sidebar has a "Plan" item. `/pricing` and the create-form picker ship in Stage B with checkout.
 
 ### Stage B — Paid plans v1
 - **Contributor cap enforced on the server** (2c upload step): a new contributor beyond the cap gets "This album is full — ask the host to upgrade"; existing contributors keep uploading.
