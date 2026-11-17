@@ -314,7 +314,7 @@ export default function AdminAlbumsTable({
             it fits, so the header can stick under the admin bar (top-16). */}
         <div className={`overflow-x-auto rounded-b-[22px] transition-opacity lg:overflow-visible ${navigating ? "opacity-60" : ""}`}>
           <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="sticky top-16 z-20 bg-surface text-[12px] text-ink-3 shadow-[inset_0_-1px_0_var(--line)]">
+            <thead className="z-20 bg-surface lg:sticky lg:top-16 text-[12px] text-ink-3 shadow-[inset_0_-1px_0_var(--line)]">
               <tr>
                 <th className="w-10 py-3 pl-4">
                   <input
