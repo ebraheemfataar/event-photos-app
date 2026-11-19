@@ -16,6 +16,16 @@ export const COMPRESSION_OPTIONS = {
   preserveExif: false,
 } as const;
 
+/** Grid thumbnail (0014): small JPEG made from the already-compressed photo,
+ * so it carries no EXIF either. */
+export const THUMB_OPTIONS = {
+  maxSizeMB: 0.08,
+  maxWidthOrHeight: 480,
+  fileType: "image/jpeg",
+  initialQuality: 0.78,
+  preserveExif: false,
+} as const;
+
 /** Uploaded as-is, without compression. Redrawing a GIF on a canvas keeps
  * only its first frame, which kills the animation. GIFs have no EXIF block,
  * so skipping compression doesn't leak location data. */

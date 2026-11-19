@@ -4,13 +4,16 @@ import { useState } from "react";
 import type { AddOn, Plan, PlanStatus } from "@/lib/plans";
 import { formatRand, planMood, upgradePriceCents } from "@/lib/plans";
 import Sheet from "@/components/Sheet";
+import Spinner from "@/components/Spinner";
+import { startCheckout } from "@/lib/checkoutActions";
 
 // "Your plan" sheet, from the design in docs/design (snap-share-your-plan.html):
 // usage first (big number, bar, two stat tiles), plans second (tap one to
 // see the upgrade price = new plan − what's been paid), extras, fine print.
-// Upgrades open PayFast in Stage B; until then the button says so.
-
-const UPGRADES_LIVE = false;
+// With payments switched on (PayFast configured on the server), picking a
+// plan or extra and an email starts checkout; otherwise the button says
+// "Upgrades coming soon". The plan only changes after PayFast's verified
+// notification (app/api/payfast/notify), never from this page.
 
 const HEADING = { fontFamily: "var(--font-title, var(--font-geist-sans), system-ui, sans-serif)" } as const;
 
@@ -42,24 +45,45 @@ export function planUsageLine(s: PlanStatus): string {
   return `${guests} · ${time}`;
 }
 
-/** Host-only chip under the album title; opens the plan sheet. */
-export function PlanChip({ status, onClick }: { status: PlanStatus; onClick: () => void }) {
+/** Host-only plan card under the album profile: plan, usage, a guests bar
+ * and a clear Upgrade button. Opens the plan sheet. */
+export function PlanCard({ status, onOpen, isTopPlan }: { status: PlanStatus; onOpen: () => void; isTopPlan: boolean }) {
   const mood = planMood(status);
+  const cap = status.contributorCap;
+  const pct = cap ? Math.min(100, (status.contributors / cap) * 100) : 0;
+  const frame =
+    mood === "full" ? "border-danger/40 bg-danger-bg" : mood === "near" ? "border-warn-line bg-warn-bg" : "border-line bg-surface";
+  const bar = mood === "full" ? "bg-danger" : mood === "near" ? "bg-warn-ink" : "bg-accent";
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`Plan: ${planSummary(status)}`}
-      className={`inline-flex min-h-8 max-w-full items-center gap-2 rounded-full px-3 text-[13px] transition-colors ${
-        mood === "ok" ? "bg-surface-2 text-ink-2 hover:bg-surface-3" : "bg-warn-bg text-warn-ink"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`h-[7px] w-[7px] shrink-0 rounded-full ${mood === "full" ? "bg-danger" : mood === "near" ? "bg-current" : "bg-accent"}`}
-      />
-      <span className="truncate">{planSummary(status)}</span>
-    </button>
+    <section aria-label="Your plan" className={`flex items-center gap-3 rounded-[22px] border p-3.5 lg:p-4 ${frame}`}>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-btn text-btn-ink">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.5 2.5 0 0 0 0 5v2a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-2a2.5 2.5 0 0 0 0-5z" />
+          <path d="M14 5v14" strokeDasharray="2 2.5" />
+        </svg>
+      </span>
+      <button type="button" onClick={onOpen} aria-label={`Plan: ${planSummary(status)}`} className="min-w-0 flex-1 text-left">
+        <span className="block text-[15px] font-semibold">
+          {status.legacy ? "Early album" : `${status.planName} plan`}
+          {mood === "full" && <span className="ml-1.5 text-xs font-semibold text-danger">· Full</span>}
+        </span>
+        <span className={`block truncate text-[13px] ${mood === "ok" ? "text-ink-3" : "text-warn-ink"}`}>{planSummary(status).split(" · ").slice(1).join(" · ")}</span>
+        {cap !== null && (
+          <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-surface-3">
+            <span className={`block h-full rounded-full ${bar}`} style={{ width: `${Math.max(pct, 2)}%` }} />
+          </span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition-opacity hover:opacity-90 ${
+          isTopPlan ? "border border-line-strong bg-surface text-ink" : "bg-accent text-accent-ink"
+        }`}
+      >
+        {isTopPlan ? "Manage" : "Upgrade"}
+      </button>
+    </section>
   );
 }
 
@@ -69,36 +93,124 @@ export default function PlanSheet({
   status,
   plans,
   addOns,
+  paymentsEnabled = false,
+  eventId,
+  hostToken,
+  initialSelected = null,
 }: {
   open: boolean;
   onClose: () => void;
   status: PlanStatus;
   plans: Plan[];
   addOns: AddOn[];
+  /** PayFast is configured: show real checkout. */
+  paymentsEnabled?: boolean;
+  eventId?: string;
+  hostToken?: string;
+  /** Plan to pre-select (e.g. chosen when the album was created). */
+  initialSelected?: string | null;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const UPGRADES_LIVE = paymentsEnabled && Boolean(eventId && hostToken);
+  const [selected, setSelected] = useState<string | null>(initialSelected);
+  const [selectedAddOn, setSelectedAddOn] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const mood = planMood(status);
   const rank = (id: string) => plans.findIndex((p) => p.id === id);
   const isUnlimited = !status.legacy && status.contributorCap === null && status.expiresAt === null;
   const options = status.legacy ? plans.filter((p) => p.price_cents > 0) : plans.filter((p) => rank(p.id) >= rank(status.planId));
   const next = options.find((p) => p.id !== status.planId && (!status.legacy || p.price_cents > 0));
   const target = plans.find((p) => p.id === selected) ?? null;
+  const targetAddOn = addOns.find((a) => a.id === selectedAddOn) ?? null;
+  const choice = target
+    ? { kind: "plan" as const, id: target.id }
+    : targetAddOn
+      ? { kind: "add_on" as const, id: targetAddOn.id }
+      : null;
+  const payAmount = target ? upgradePriceCents(status.priceCents, target) : (targetAddOn?.price_cents ?? 0);
 
   function close() {
     setSelected(null);
+    setSelectedAddOn(null);
+    setPayError(null);
     onClose();
   }
 
+  function pickPlan(id: string | null) {
+    setSelected(id);
+    if (id) setSelectedAddOn(null);
+  }
+
+  /** Start checkout and hand the browser to PayFast. */
+  async function pay() {
+    if (!choice || !eventId || !hostToken) return;
+    setPaying(true);
+    setPayError(null);
+    const r = await startCheckout({ eventId, hostToken, item: choice, email });
+    if (!r.ok) {
+      setPaying(false);
+      setPayError(r.error);
+      return;
+    }
+    // The return page brings you back here without the host link ever going
+    // to PayFast: remember where we were, for this tab only.
+    try {
+      sessionStorage.setItem("snap-checkout-return", window.location.pathname + window.location.search);
+    } catch {}
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = r.action;
+    for (const [k, v] of r.fields) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = k;
+      input.value = v;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+
   const footer =
-    (target || mood !== "ok") && !isUnlimited ? (
+    (choice || mood !== "ok") && !isUnlimited ? (
           <div className="flex flex-col gap-2 text-center">
-            {target ? (
+            {choice ? (
               UPGRADES_LIVE ? (
                 <>
-                  <button type="button" className="h-[54px] w-full rounded-full bg-btn text-base font-semibold text-btn-ink">
-                    Continue to payment
+                  <label className="flex h-12 items-center gap-2.5 rounded-[14px] border border-line-strong bg-surface-2 px-4 text-left focus-within:border-ink">
+                    <span className="whitespace-nowrap text-sm text-ink-3">Receipt to</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      aria-label="Email for your receipt"
+                      className="h-full min-w-0 flex-1 bg-transparent text-right text-base outline-none focus-visible:[box-shadow:none]"
+                    />
+                  </label>
+                  {payError && (
+                    <p role="alert" className="rounded-[12px] bg-danger-bg px-3 py-2 text-left text-[13px] text-danger">
+                      {payError}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={pay}
+                    disabled={paying}
+                    aria-busy={paying}
+                    className="flex h-[54px] w-full items-center justify-center gap-2.5 rounded-full bg-btn text-base font-semibold text-btn-ink transition-opacity hover:opacity-90"
+                  >
+                    {paying && <Spinner />}
+                    {paying ? "Opening PayFast…" : `Continue to payment · ${formatRand(payAmount)}`}
                   </button>
-                  <span className="text-[12.5px] text-ink-3">Secure payment with PayFast</span>
+                  <span className="text-[12.5px] text-ink-3">
+                    Secure payment with PayFast ·{" "}
+                    <a href="/terms" target="_blank" className="underline">
+                      Terms &amp; refunds
+                    </a>
+                  </span>
                 </>
               ) : (
                 <>
@@ -112,7 +224,7 @@ export default function PlanSheet({
               next && (
                 <button
                   type="button"
-                  onClick={() => setSelected(next.id)}
+                  onClick={() => pickPlan(next.id)}
                   className="h-[54px] w-full rounded-full bg-btn text-base font-semibold text-btn-ink transition-opacity hover:opacity-90"
                 >
                   Upgrade to {next.name} · {formatRand(upgradePriceCents(status.priceCents, next))}
@@ -177,7 +289,7 @@ export default function PlanSheet({
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    onClick={() => setSelected(on ? null : p.id)}
+                    onClick={() => pickPlan(on ? null : p.id)}
                     className={`flex min-h-16 w-full flex-col gap-1 rounded-[20px] border-[1.5px] bg-surface px-4 py-3.5 text-left transition-colors focus-visible:[box-shadow:none] ${
                       on ? "border-accent" : "border-transparent hover:border-line-strong focus-visible:border-ink-3"
                     }`}
@@ -222,15 +334,42 @@ export default function PlanSheet({
               <span className="mono text-[11px] text-ink-3">Extras</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {addOns.map((a) => (
-                <div key={a.id} className="flex min-h-14 flex-col gap-0.5 rounded-[18px] bg-surface-2 px-3.5 py-3">
-                  <b className="text-sm font-semibold leading-snug">{a.name}</b>
-                  <span className="text-xs text-ink-3">
-                    <span className="font-semibold text-ink-2">{formatRand(a.price_cents)}</span> ·{" "}
-                    {a.extra_retention_days > 0 ? "added to your keep date" : a.stackable ? "add as many as you need" : "once per event"}
-                  </span>
-                </div>
-              ))}
+              {addOns.map((a) => {
+                const body = (
+                  <>
+                    <b className="text-sm font-semibold leading-snug">{a.name}</b>
+                    <span className="text-xs text-ink-3">
+                      <span className="font-semibold text-ink-2">{formatRand(a.price_cents)}</span> ·{" "}
+                      {a.extra_retention_days > 0 ? "added to your keep date" : a.stackable ? "add as many as you need" : "once per event"}
+                    </span>
+                  </>
+                );
+                if (!UPGRADES_LIVE) {
+                  return (
+                    <div key={a.id} className="flex min-h-14 flex-col gap-0.5 rounded-[18px] bg-surface-2 px-3.5 py-3">
+                      {body}
+                    </div>
+                  );
+                }
+                const on = selectedAddOn === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => {
+                      setSelectedAddOn(on ? null : a.id);
+                      if (!on) setSelected(null);
+                    }}
+                    className={`flex min-h-14 flex-col gap-0.5 rounded-[18px] border-[1.5px] bg-surface-2 px-3.5 py-3 text-left focus-visible:[box-shadow:none] ${
+                      on ? "border-accent" : "border-transparent hover:border-line-strong"
+                    }`}
+                  >
+                    {body}
+                  </button>
+                );
+              })}
             </div>
           </section>
         )}

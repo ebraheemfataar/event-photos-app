@@ -11,10 +11,13 @@ export function TableCard({
   eventName,
   guestUrl,
   size = 196,
+  badge = false,
 }: {
   eventName: string;
   guestUrl: string;
   size?: number;
+  /** "Made with Snap & Share" (plans that show the badge). */
+  badge?: boolean;
 }) {
   return (
     <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] border border-line bg-[var(--card-bg)] text-center text-[var(--card-ink)] shadow-2">
@@ -33,6 +36,7 @@ export function TableCard({
             />
           )}
         </div>
+        {badge && <div className="mt-3 text-[10px] text-[var(--card-muted)]">Made with Snap & Share</div>}
       </div>
       <div className="flex h-10 items-center justify-center bg-[var(--card-strip)] text-[13px] font-semibold text-[var(--card-strip-ink)]">
         No app · No login · Just scan
@@ -47,10 +51,13 @@ export default function QRCodeCard({
   guestUrl,
   onNotify,
   split = false,
+  badge = false,
 }: {
   eventName: string;
   guestUrl: string;
   onNotify: (message: string) => void;
+  /** Show "Made with Snap & Share" on the card, PNG and printed tent. */
+  badge?: boolean;
   /** Side-by-side card + actions from md up (host page). */
   split?: boolean;
 }) {
@@ -148,6 +155,11 @@ export default function QRCodeCard({
     const qrSize = 600;
     const qrTop = 210 + shown.length * 80;
     ctx.drawImage(qr, (W - qrSize) / 2, qrTop, qrSize, qrSize);
+    if (badge) {
+      ctx.fillStyle = v("--card-muted", "#55555B");
+      ctx.font = `500 22px ${bodyFamily}`;
+      ctx.fillText("Made with Snap & Share", W / 2, H - 140);
+    }
 
     ctx.fillStyle = v("--card-strip", "#FF5A1F");
     ctx.fillRect(0, H - 120, W, 120);
@@ -164,7 +176,7 @@ export default function QRCodeCard({
   return (
     <div className={`flex flex-col gap-4 ${split ? "md:flex-row md:items-center md:gap-8" : ""}`}>
       <div className={split ? "md:w-[300px] md:shrink-0" : ""}>
-        <TableCard eventName={eventName} guestUrl={guestUrl} />
+        <TableCard eventName={eventName} guestUrl={guestUrl} badge={badge} />
       </div>
       <div ref={canvasWrapRef} className="hidden" aria-hidden="true">
         {guestUrl && <QRCodeCanvas value={guestUrl} size={600} marginSize={0} bgColor="transparent" />}
@@ -226,7 +238,7 @@ export default function QRCodeCard({
           </span>
         </button>
       </div>
-      {tent && guestUrl && <TableTent key={tent.n} eventName={eventName} guestUrl={guestUrl} theme={tent.theme} />}
+      {tent && guestUrl && <TableTent key={tent.n} eventName={eventName} guestUrl={guestUrl} theme={tent.theme} badge={badge} />}
     </div>
   );
 }

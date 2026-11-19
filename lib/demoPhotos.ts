@@ -86,6 +86,7 @@ export function demoPhotos(now = Date.now()): Photo[] {
     guest_name: guest,
     content_type: "image/jpeg",
     prompt_id: prompt,
+    thumb_path: null,
     created_at: new Date(now - minutesAgo * 60_000).toISOString(),
   }));
 }

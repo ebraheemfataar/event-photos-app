@@ -18,13 +18,13 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | 4 | Privacy extras: consent, storage cleanup, retention | Planned | S–M |
 | 5 | Likes & comments | Planned | M |
 | 6 | Guest access: codes, approval, pass words | Planned | L |
-| **7a** | **"Your albums on this device"** (no login stopgap for My events) | Planned | S |
+| **7a** | **"Your albums on this device"** (no login stopgap for My events) | 🔧 Built | S |
 | 7 | Host accounts, My events, settings, team | Planned | L |
 | **A** | **Admin portal** (developer: all albums, close, delete, stats) | 🔧 Built (migration 0012) | M |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
 | **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | ✅ Shipped (`d8ca440`, migration 0008) | M |
-| **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | Stage A 🔧 built (migration 0011); B–D planned | L |
+| **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | A ✅ shipped; B 🔧 built (0015, off until launch); C–D planned | L |
 | — | Backlog / tech debt | Ongoing | — |
 
 **Build order from here:** **2c** (doubles as
@@ -164,7 +164,7 @@ Boards: *Flow · Login & access*, *Guest joins*, *How pass words work*, *Errors 
 
 **DB:** `guest_passes`, `view_links`, `events.access_mode/code/pass_length`; `device_id` → `pass_id`.
 
-## Phase 7a — "Your albums on this device" · Size S
+## Phase 7a — "Your albums on this device" · Size S · 🔧 built
 
 A no-login stopgap for *My events* until host accounts exist.
 - The browser remembers every album created or opened with a valid host link (id, name, host link, date) in `localStorage`.
@@ -232,6 +232,12 @@ count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md
 - **Stage C — Needs host accounts (Phase 7):** 3-event pack, returning-host coupon, Pro subscription, co-hosts, own logo.
 - **Stage D — As features are built:** video, full-res, ZIP, slideshow, highlight video, printed card packs.
 
+## Email (Resend) · Size S · ⏰ remind before launch
+
+Screens and code are ready; only the account is missing.
+- ✅ Templates: receipt and expiry reminders (7 days / 1 day) in `lib/emailTemplates.ts`, previewed at `/admin/emails`; the receipt is sent from the verified ITN.
+- To do: create a Resend account, verify a domain (DNS records), set `RESEND_API_KEY` + `EMAIL_FROM` on Vercel; then add the reminder sending to the daily expiry job (`app/api/cron/expire`). Needs a domain of our own first (also for a proper web address).
+
 ## Backlog / tech debt
 
 - **Tests:** EXIF, theme contrast and event-details validation (always), plus opt-in E2E against the local stack. Missing: running the E2E suite in CI.
@@ -241,7 +247,7 @@ count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md
 - **Logo:** `app/icon.svg` / `app/apple-icon.tsx` are a placeholder mark; swap for the final logo.
 - **Upload composer polish:** ✅ picked photos are staged as previews (remove / add more / take another) and only upload on "Share", after name and prompt. Still to do: posting progress shown in the feed (*Upload composer*).
 - **Selfie prompt** has no demo photo yet (`lib/demoPhotos.ts`).
-- **Albums over 1,000 photos only show the newest 1,000:** `getEventPhotos` hits PostgREST's default row limit, so the grid and the profile counts stop at 1,000. Fix with paged loading (infinite scroll) alongside thumbnails, before launch.
+- ✅ **Big albums (0014):** paged loading (60 at a time, keyset) with server totals, and uploaded grid thumbnails (~480 px JPEG) served unoptimised. Older photos keep using the optimiser.
 - **Vercel Hobby limits:** 5K image optimisations / month; watch usage once real events run.
 - **Custom domain** (Vercel production checklist).
 - **Videos:** the photo-limit board mentions "videos count as 3 photos"; not designed further.

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/session";
-import { getAdminEvent, getAdminPhotos, getAudit } from "@/lib/admin/data";
+import { getAdminEvent, getAdminPhotos, getAdminPurchases, getAudit } from "@/lib/admin/data";
+import { formatRand } from "@/lib/plans";
 import { formatBytes, formatDate } from "@/lib/admin/format";
 import AdminHeader from "@/components/admin/AdminHeader";
 import StatusPill from "@/components/admin/StatusPill";
@@ -20,7 +21,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
   const { id } = await params;
   const event = await getAdminEvent(id);
   if (!event) notFound();
-  const [photos, audit] = await Promise.all([getAdminPhotos(id), getAudit(id, 15)]);
+  const [photos, audit, purchases] = await Promise.all([getAdminPhotos(id), getAudit(id, 15), getAdminPurchases(id)]);
 
   const facts: [string, string][] = [
     ["Created", formatDate(event.created_at, true)],
@@ -58,6 +59,59 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
                 </div>
               ))}
             </dl>
+
+            <section aria-label="Payments">
+              <h2 className="mb-2.5 text-lg font-semibold">
+                Payments {purchases.length > 0 && <span className="text-sm font-normal text-ink-3">({purchases.length})</span>}
+              </h2>
+              {purchases.length === 0 ? (
+                <p className="rounded-[18px] border border-line bg-surface px-4 py-5 text-sm text-ink-3">No purchases yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-[18px] border border-line bg-surface">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="text-[12px] text-ink-3">
+                      <tr className="border-b border-line">
+                        <th className="px-4 py-2.5 font-medium">Date</th>
+                        <th className="px-3 py-2.5 font-medium">Item</th>
+                        <th className="px-3 py-2.5 text-right font-medium">Amount</th>
+                        <th className="px-3 py-2.5 font-medium">Status</th>
+                        <th className="px-3 py-2.5 font-medium">PayFast ref</th>
+                        <th className="px-4 py-2.5 font-medium">Purchase ID · email</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchases.map((p) => (
+                        <tr key={p.id} className="border-b border-line last:border-0 align-top">
+                          <td className="px-4 py-2.5 text-ink-2">{formatDate(p.paid_at ?? p.created_at, true)}</td>
+                          <td className="px-3 py-2.5">
+                            {p.item} <span className="text-ink-3">{p.kind === "add_on" ? "extra" : "plan"}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{formatRand(p.amount_cents)}</td>
+                          <td className="px-3 py-2.5">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                p.status === "paid"
+                                  ? "bg-[#22C55E]/15 text-live"
+                                  : p.status === "pending"
+                                    ? "bg-surface-3 text-ink-2"
+                                    : "bg-danger-bg text-danger"
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs">{p.provider_ref ?? "—"}</td>
+                          <td className="px-4 py-2.5">
+                            <span className="block select-all font-mono text-[11px]">{p.id}</span>
+                            <span className="block text-xs text-ink-3">{p.email ?? "—"}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
 
             <div>
               <h2 className="mb-2.5 text-lg font-semibold">

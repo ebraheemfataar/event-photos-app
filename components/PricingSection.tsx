@@ -1,13 +1,14 @@
 import type { AddOn, Plan } from "@/lib/plans";
 import { formatRand } from "@/lib/plans";
 import { CheckIcon } from "@/components/icons";
+import PlanChooseButton from "@/components/PlanChooseButton";
 
 // Landing-page pricing (docs/PRICING.md: "a pricing section on the landing
 // page"). Numbers come from the `plans` / `add_ons` tables, so this always
-// matches the host's "Your plan" sheet. Paid plans can't be bought yet, so
-// they say "Coming soon" — Free is the only call to action.
+// matches the host's "Your plan" sheet. Paid plans say
+// "Coming soon" until payments are switched on; then "Choose" picks
+// the plan in the create form (checkout follows on the host page).
 
-const PAID_LIVE = false;
 
 function retention(days: number | null) {
   if (days === null) return "Kept forever";
@@ -15,7 +16,16 @@ function retention(days: number | null) {
   return `Kept for ${days} days`;
 }
 
-export default function PricingSection({ plans, addOns }: { plans: Plan[]; addOns: AddOn[] }) {
+export default function PricingSection({
+  plans,
+  addOns,
+  paymentsEnabled = false,
+}: {
+  plans: Plan[];
+  addOns: AddOn[];
+  /** PayFast configured: paid plans get "Choose" (picks it in the create form). */
+  paymentsEnabled?: boolean;
+}) {
   if (plans.length === 0) return null;
   const featured = "medium";
 
@@ -71,13 +81,8 @@ export default function PricingSection({ plans, addOns }: { plans: Plan[]; addOn
                 >
                   Start free
                 </a>
-              ) : PAID_LIVE ? (
-                <a
-                  href="#create"
-                  className="mt-6 flex h-12 items-center justify-center rounded-full border border-line-strong text-[15px] font-semibold transition-colors hover:bg-surface-3"
-                >
-                  Choose {p.name}
-                </a>
+              ) : paymentsEnabled ? (
+                <PlanChooseButton planId={p.id} label={`Choose ${p.name}`} />
               ) : (
                 <span className="mt-6 flex h-12 items-center justify-center rounded-full bg-surface-2 text-[15px] font-semibold text-ink-3">
                   Coming soon

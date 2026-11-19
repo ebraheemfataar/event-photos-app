@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import type { Photo } from "@/lib/types";
 import { getPromptById } from "@/lib/prompts";
-import { photoSrc } from "@/lib/photoSrc";
+import { photoSrc, thumbSrc } from "@/lib/photoSrc";
 import { avatarSwatch, initialOf, promptSwatch, timeAgo } from "@/lib/display";
 import { TrashIcon } from "@/components/icons";
 
@@ -19,7 +19,7 @@ function altFor(photo: Photo) {
 }
 
 /** Image that shows a shimmer skeleton until it has loaded. */
-function LoadingImage({ src, alt, sizes }: { src: string; alt: string; sizes: string }) {
+function LoadingImage({ src, alt, sizes, unoptimized = false }: { src: string; alt: string; sizes: string; unoptimized?: boolean }) {
   const [loaded, setLoaded] = useState(false);
   return (
     <>
@@ -29,6 +29,7 @@ function LoadingImage({ src, alt, sizes }: { src: string; alt: string; sizes: st
         alt={alt}
         fill
         sizes={sizes}
+        unoptimized={unoptimized}
         onLoad={() => setLoaded(true)}
         className={`object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
       />
@@ -52,11 +53,12 @@ export function GridView({ photos, freshIds, onOpen }: Common) {
             aria-label={`Open ${altFor(photo).toLowerCase()}${prompt ? `, ${prompt.label}` : ""}`}
             className={`group relative aspect-[4/5] overflow-hidden bg-surface-2 lg:rounded-md ${fresh ? "arrive" : ""}`}
           >
-            <LoadingImage
-              src={photoSrc(photo)}
-              alt={altFor(photo)}
-              sizes="(min-width: 1024px) 300px, 33vw"
-            />
+            {(() => {
+              // Uploaded thumbnail when there is one (already small: served as
+              // is); otherwise the full photo, resized by next/image.
+              const t = thumbSrc(photo);
+              return <LoadingImage src={t.src} alt={altFor(photo)} sizes="(min-width: 1024px) 300px, 33vw" unoptimized={t.isThumb} />;
+            })()}
             <span aria-hidden="true" className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/15" />
             {fresh && (
               <span className="absolute right-1.5 top-1.5 flex h-5 items-center rounded-full bg-white px-[7px] text-[10px] font-bold text-[#0E0E10]">

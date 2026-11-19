@@ -12,7 +12,8 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:status": "supabase status",
-    "db:env": "node scripts/write-local-env.mjs"
+    "db:env": "node scripts/write-local-env.mjs",
+    "pay:simulate": "node scripts/simulate-payment.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

@@ -30,5 +30,7 @@ export type Photo = {
   guest_name: string | null;
   content_type: string | null;
   prompt_id: string | null;
+  /** Small grid copy (0014); null for older uploads and GIFs. */
+  thumb_path: string | null;
   created_at: string;
 };

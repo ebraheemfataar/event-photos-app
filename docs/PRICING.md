@@ -47,7 +47,7 @@ Further decisions made while planning:
 
 **Where pricing shows up (agreed):** a pricing section on the landing page (four plan cards + "Compare plans"), a full `/pricing` page (comparison, add-ons, FAQ), the plan chip/sheet in the host album, and a plan picker in the create form (Free pre-selected). ✅ The landing section is live early (plans from the database; Free is "Start free", paid plans say "Coming soon" until checkout exists), and the host sidebar has a "Plan" item. `/pricing` and the create-form picker ship in Stage B with checkout.
 
-### Stage B — Paid plans v1
+### Stage B — Paid plans v1 · 🔧 built (migration 0015), switched off until launch
 - **Contributor cap enforced on the server** (2c upload step): a new contributor beyond the cap gets "This album is full — ask the host to upgrade"; existing contributors keep uploading.
 - **Plan picker at creation** (Free selected) and a **pricing page**, built from the landing page's card and button styles (the design file has no pricing board).
 - **Upgrade prompt** when the host nears or hits a limit; price = new plan − plans already paid for that event (integer cents, never negative).
@@ -65,10 +65,14 @@ Further decisions made while planning:
 ### Stage D — Feature add-ons, as each feature is built
 Video uploads (Medium+; blocked on Free/Small in the 2c upload step), full-res downloads, ZIP export, live slideshow, highlight video, printed QR card packs.
 
+**Built in Stage B:** `event_purchases`; PayFast checkout from the host's plan sheet (plans and extras, email at checkout) and from the create form's plan picker (album created on Free, checkout opens straight after); verified-ITN-only "paid" (signature, PayFast IP, VALID call-back, merchant, exact amount, idempotent); upgrades charge the difference; `/pay/done` return page; guest cap behind `PLAN_LIMITS_ENFORCED`; "Choose" on pricing cards; `/pricing` page with FAQ; badge on Free/Small (album footer, QR card, PNG, tent); receipts via Resend when configured. Tested end to end against PayFast's public sandbox merchant with a simulated ITN.
+
+**Launch checklist:** see `supabase/launch/pricing-launch.sql`.
+
 ## Open items
-- Refund policy and terms of sale (needed before Stage B goes live).
-- Email provider choice for receipts/reminders (Stage A).
-- PayFast sandbox credentials for development; production credentials added to Vercel as Sensitive.
+- Refund policy and terms of sale (needed before Stage B goes live) — `/terms` has original draft terms (CPA, ECT Act 7-day cooling-off until guests start sharing, POPIA); set `SUPPORT_EMAIL` in app/terms/page.tsx and have them reviewed before launch.
+- Email provider for receipts/reminders: wired for Resend via `fetch` (no package); needs an account + `RESEND_API_KEY` / `EMAIL_FROM`. Expiry reminders still to build on top.
+- Your own PayFast sandbox account for a real sandbox payment from a deployed preview (ITNs can't reach localhost); production credentials added to Vercel as Sensitive.
 
 ---
 

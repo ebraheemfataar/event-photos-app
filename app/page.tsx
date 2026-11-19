@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import CreateEventForm from "@/components/CreateEventForm";
 import PricingSection from "@/components/PricingSection";
+import YourAlbums from "@/components/YourAlbums";
 import { getPricing } from "@/lib/data";
+import { payfastConfig } from "@/lib/payments/config";
 import { unsplash } from "@/lib/demoPhotos";
 import ThemeToggle from "@/components/ThemeToggle";
 import { CameraIcon, ChevronRightIcon, ImagesIcon, LogoIcon, PlusIcon, QrIcon } from "@/components/icons";
@@ -27,6 +29,7 @@ export const revalidate = 3600;
 
 export default async function Home() {
   const { plans, addOns } = await getPricing();
+  const paymentsEnabled = payfastConfig() !== null;
   return (
     <div className="flex flex-1 flex-col">
       <header className="glass sticky top-0 z-20 flex h-16 items-center justify-between bg-glass pl-[18px] pr-3.5 md:h-[76px] md:px-10">
@@ -124,13 +127,15 @@ export default async function Home() {
           </Link>
         </section>
 
+        <YourAlbums />
+
         <section id="create" className="scroll-mt-20 px-4 pt-10 md:pt-16">
           <div className="mx-auto max-w-md rounded-[28px] border border-line bg-surface p-[22px] shadow-1 md:p-7">
             <h2 className="hd text-[26px] leading-[1.1]">
               Start an album. <span className="text-mute">Ten seconds.</span>
             </h2>
             <p className="mt-1.5 mb-4 text-[15px] text-ink-3">You get a QR code to share with your guests.</p>
-            <CreateEventForm />
+            <CreateEventForm plans={plans} paymentsEnabled={paymentsEnabled} />
           </div>
         </section>
 
@@ -161,7 +166,7 @@ export default async function Home() {
           </ol>
         </section>
 
-        <PricingSection plans={plans} addOns={addOns} />
+        <PricingSection plans={plans} addOns={addOns} paymentsEnabled={paymentsEnabled} />
       </main>
 
       <footer className="mt-12 flex items-center justify-between border-t border-line px-[22px] py-6 md:mt-16 md:px-10">

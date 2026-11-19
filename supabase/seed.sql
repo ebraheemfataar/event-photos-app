@@ -51,3 +51,8 @@ from (values
   ('1520854221256-17451cc331bf', 'Thandi', 'see-you-soon', 190),
   ('1511632765486-a01980e01a18', 'Jamie', 'see-you-soon', 205)
 ) as s(photo, guest, prompt, minutes_ago);
+
+-- The seed album stands in for an album from before pricing: no guest cap
+-- and no deletion date, so local tests can add many guests to it.
+update public.events set legacy_uncapped = true, expires_at = null
+where id = '00000000-0000-4000-8000-000000000001';

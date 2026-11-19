@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Event, Photo } from "@/lib/types";
@@ -8,13 +8,14 @@ import { formatEventDate, type ValidDetails } from "@/lib/eventDetails";
 import EventCover from "@/components/EventCover";
 import EventInfoSheet from "@/components/EventInfoSheet";
 import EditEventSheet from "@/components/EditEventSheet";
-import PlanSheet, { PlanChip, planUsageLine } from "@/components/PlanSheet";
+import PlanSheet, { PlanCard, planUsageLine } from "@/components/PlanSheet";
 import { planMood } from "@/lib/plans";
 import type { AddOn, Plan, PlanStatus } from "@/lib/plans";
 import { photoSrc } from "@/lib/photoSrc";
 import { PROMPTS } from "@/lib/prompts";
 import { deleteMyPhoto, removePhotoAsHost } from "@/lib/uploadActions";
 import { forgetMyPhoto, getGuestId, useMyPhotoIds } from "@/lib/guestId";
+import { rememberAlbum } from "@/lib/myAlbums";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
@@ -66,6 +67,18 @@ export type EventAlbumProps = {
   planStatus?: PlanStatus | null;
   plans?: Plan[];
   addOns?: AddOn[];
+  /** The plan shows "Made with Snap & Share" (plans.shows_badge). */
+  showBadge?: boolean;
+  /** Album totals from the server (paged albums); falls back to the loaded photos. */
+  totals?: { photos: number; guests: number };
+  /** More (older) photos can be loaded on scroll. */
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+  /** PayFast is configured: the plan sheet offers real checkout. */
+  paymentsEnabled?: boolean;
+  /** Open the plan sheet with this plan picked (?upgrade=, after creating). */
+  initialUpgrade?: string | null;
 };
 
 type View = "grid" | "feed";
@@ -84,6 +97,13 @@ export default function EventAlbum({
   planStatus,
   plans = [],
   addOns = [],
+  showBadge = false,
+  totals,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+  paymentsEnabled = false,
+  initialUpgrade = null,
 }: EventAlbumProps) {
   const { id: eventId, name: eventName, is_active: isActive, created_at: createdAt } = event;
   const theme = event.theme ?? DEFAULT_THEME;
@@ -100,7 +120,7 @@ export default function EventAlbum({
   const [removing, setRemoving] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [planOpen, setPlanOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(Boolean(initialUpgrade && paymentsEnabled));
 
   const isHost = mode === "host";
   // Hosts add photos too (same upload path and RLS as guests); a visitor with
@@ -121,6 +141,11 @@ export default function EventAlbum({
   const needsCover = canEdit && !event.cover_path;
   const eventDate = formatEventDate(event.event_date);
 
+  // "Your albums on this device" (7a): remember albums opened as host.
+  useEffect(() => {
+    if (canEdit && hostToken) rememberAlbum({ id: eventId, token: hostToken, name: eventName });
+  }, [canEdit, hostToken, eventId, eventName]);
+
   // The profile picture ripples every ~10 s until it's been tapped once.
   const [coverTapped, setCoverTapped] = useState(false);
 
@@ -135,6 +160,23 @@ export default function EventAlbum({
     () => new Set(photos.map((p) => p.guest_name?.trim().toLowerCase()).filter(Boolean)).size,
     [photos]
   );
+  // Paged albums get exact totals from the server; the demo counts what it has.
+  const photoTotal = totals ? Math.max(totals.photos, photos.length) : photos.length;
+  const guestTotal = totals ? Math.max(totals.guests, guestCount) : guestCount;
+
+  // Load the next page when the end of the list comes near.
+  const moreRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef(onLoadMore);
+  useEffect(() => {
+    loadMoreRef.current = onLoadMore;
+  });
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || !hasMore) return;
+    const io = new IntersectionObserver((entries) => entries[0]?.isIntersecting && loadMoreRef.current?.(), { rootMargin: "800px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, photos.length]);
 
   const usedPrompts = useMemo(() => {
     const used = new Set(photos.map((p) => p.prompt_id).filter(Boolean));
@@ -408,24 +450,19 @@ export default function EventAlbum({
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-[935px] pb-[calc(96px+env(safe-area-inset-bottom))] lg:px-6 lg:pb-16">
+        <main className="mx-auto w-full max-w-[935px] pb-[calc(168px+env(safe-area-inset-bottom))] lg:px-6 lg:pb-28">
           {/* Profile — mobile */}
           <section className="px-[18px] pt-1 lg:hidden">
             <div className="flex items-center gap-[22px]">
               <EventCover event={event} live={isActive} size={88} showAddHint={needsCover} beckon={!coverTapped} onClick={openCover} />
               <dl className="grid flex-1 grid-cols-3 text-center">
-                <Stat label="Photos">{photos.length}</Stat>
-                <Stat label="Guests">{guestCount}</Stat>
+                <Stat label="Photos">{photoTotal.toLocaleString("en-GB")}</Stat>
+                <Stat label="Guests">{guestTotal.toLocaleString("en-GB")}</Stat>
                 <Stat label="Status">{statusNode}</Stat>
               </dl>
             </div>
             <h1 className="event-title mt-3">{eventName}</h1>
             <p className="mt-0.5 text-sm leading-snug text-ink-2">{subtitle}</p>
-            {isHost && planStatus && (
-              <div className="mt-2.5">
-                <PlanChip status={planStatus} onClick={() => setPlanOpen(true)} />
-              </div>
-            )}
             {actions && <div className="mt-3 flex gap-1.5">{actions}</div>}
           </section>
 
@@ -439,11 +476,11 @@ export default function EventAlbum({
               </div>
               <dl className="mt-5 flex gap-9 text-base">
                 <div className="flex gap-1.5">
-                  <dd className="font-semibold">{photos.length}</dd>
+                  <dd className="font-semibold">{photoTotal.toLocaleString("en-GB")}</dd>
                   <dt>photos</dt>
                 </div>
                 <div className="flex gap-1.5">
-                  <dd className="font-semibold">{guestCount}</dd>
+                  <dd className="font-semibold">{guestTotal.toLocaleString("en-GB")}</dd>
                   <dt>guests</dt>
                 </div>
                 <div className="font-semibold">
@@ -453,13 +490,18 @@ export default function EventAlbum({
               </dl>
               <div className="event-title mt-4">{eventName}</div>
               <p className="mt-0.5 text-[15px] leading-normal text-ink-2">{subtitle}</p>
-              {isHost && planStatus && (
-                <div className="mt-3">
-                  <PlanChip status={planStatus} onClick={() => setPlanOpen(true)} />
-                </div>
-              )}
             </div>
           </section>
+
+          {isHost && planStatus && (
+            <div className="mx-3.5 mt-4 lg:mx-8 lg:mt-8">
+              <PlanCard
+                status={planStatus}
+                onOpen={() => setPlanOpen(true)}
+                isTopPlan={!planStatus.legacy && planStatus.contributorCap === null && planStatus.expiresAt === null}
+              />
+            </div>
+          )}
 
           {needsCover && (
             <div className="mx-3.5 mt-4 flex items-center gap-3 rounded-[22px] border border-dashed border-line-strong bg-surface p-3.5 lg:mx-8 lg:mt-8 lg:p-4">
@@ -487,7 +529,7 @@ export default function EventAlbum({
               aria-label="Invite guests"
               className="mx-3.5 mt-4 scroll-mt-6 rounded-[28px] border border-line bg-surface p-4 lg:mx-8 lg:mt-8 lg:p-6"
             >
-              <QRCodeCard eventName={eventName} guestUrl={guestUrlProp ?? ""} onNotify={notify} split />
+              <QRCodeCard eventName={eventName} guestUrl={guestUrlProp ?? ""} onNotify={notify} split badge={showBadge} />
             </section>
           )}
 
@@ -551,6 +593,29 @@ export default function EventAlbum({
               />
             )}
           </div>
+
+          {hasMore && photos.length > 0 && (
+            <div ref={moreRef} className="flex justify-center py-6">
+              <button
+                type="button"
+                onClick={() => onLoadMore?.()}
+                disabled={loadingMore}
+                aria-busy={loadingMore}
+                className="flex h-11 items-center gap-2 rounded-full border border-line-strong px-5 text-sm font-semibold text-ink-2 hover:bg-surface-3"
+              >
+                {loadingMore && <Spinner size={16} />}
+                {loadingMore ? "Loading photos…" : "Load more photos"}
+              </button>
+            </div>
+          )}
+
+          {showBadge && (
+            <p className="mt-10 text-center text-xs text-ink-3">
+              <Link href="/" className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 transition-colors hover:bg-surface-3 hover:text-ink">
+                <LogoIcon size={13} /> Made with Snap & Share
+              </Link>
+            </p>
+          )}
         </main>
       </div>
 
@@ -617,11 +682,21 @@ export default function EventAlbum({
       )}
 
       <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Invite guests">
-        {qrOpen && <QRCodeCard eventName={eventName} guestUrl={resolveGuestUrl()} onNotify={notify} />}
+        {qrOpen && <QRCodeCard eventName={eventName} guestUrl={resolveGuestUrl()} onNotify={notify} badge={showBadge} />}
       </Sheet>
 
       {isHost && planStatus && (
-        <PlanSheet open={planOpen} onClose={() => setPlanOpen(false)} status={planStatus} plans={plans} addOns={addOns} />
+        <PlanSheet
+          open={planOpen}
+          onClose={() => setPlanOpen(false)}
+          status={planStatus}
+          plans={plans}
+          addOns={addOns}
+          paymentsEnabled={paymentsEnabled && !demo}
+          eventId={eventId}
+          hostToken={hostToken}
+          initialSelected={initialUpgrade}
+        />
       )}
 
       <EventInfoSheet

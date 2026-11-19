@@ -65,6 +65,7 @@ export default function DemoAlbum({
           contributors: new Set(photos.map((p) => p.guest_name)).size,
         })}
         plans={DEMO_PLANS}
+        showBadge={DEMO_PLANS.find((p) => p.id === baseEvent.plan)?.shows_badge ?? true}
         addOns={DEMO_ADD_ONS}
       />
 

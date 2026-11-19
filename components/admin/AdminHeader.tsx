@@ -13,6 +13,14 @@ export default function AdminHeader() {
           <span className="font-semibold tracking-[-0.02em]">Snap &amp; Share</span>
           <span className="mono rounded-full bg-surface-3 px-2 py-1 text-[10px] text-ink-2">Admin</span>
         </Link>
+        <nav aria-label="Admin" className="ml-4 hidden gap-1 text-sm font-semibold sm:flex">
+          <Link href="/admin" className="rounded-full px-3 py-2 text-ink-2 hover:bg-surface-3 hover:text-ink">
+            Albums
+          </Link>
+          <Link href="/admin/emails" className="rounded-full px-3 py-2 text-ink-2 hover:bg-surface-3 hover:text-ink">
+            Emails
+          </Link>
+        </nav>
         <form action={adminLogout} className="ml-auto">
           <button type="submit" className="h-10 rounded-full border border-line-strong px-4 text-sm font-semibold hover:bg-surface-3">
             Sign out

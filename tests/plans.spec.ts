@@ -85,10 +85,12 @@ test.describe("end-to-end", () => {
     const sheet = page.getByRole("dialog", { name: "Your plan" });
     await expect(sheet.getByText("of 20 guests")).toBeVisible();
     await expect(sheet.getByText("19 spots left")).toBeVisible();
-    // Tap a plan: the upgrade price shows, payment isn't live yet.
+    // Tap a plan: the upgrade price shows. Locally PayFast's sandbox is
+    // configured, so checkout is offered (production shows "coming soon"
+    // until payments are switched on).
     await sheet.getByRole("radio", { name: /Medium/ }).click();
     await expect(sheet.getByText("Upgrade to Medium · R399")).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "Upgrades coming soon" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Continue to payment · R399" })).toBeEnabled();
   });
 
   test("home page shows the plans from the database; only Free can be started", async ({ page }) => {
@@ -98,8 +100,14 @@ test.describe("end-to-end", () => {
     await expect(pricing.getByText("R149")).toBeVisible();
     await expect(pricing.getByText("R399")).toBeVisible();
     await expect(pricing.getByText("Up to 20 guests sharing")).toBeVisible();
-    await expect(pricing.getByText("Coming soon")).toHaveCount(3);
-    await pricing.getByRole("link", { name: "Start free" }).click();
+    // Payments are on locally: paid plans offer "Choose", which picks the plan
+    // in the create form.
+    await expect(pricing.getByRole("link", { name: /^Choose / })).toHaveCount(3);
+    await pricing.getByRole("link", { name: "Choose Medium" }).click();
+    await expect(page).toHaveURL(/#create$/);
+    await expect(page.getByRole("radio", { name: /Medium/ })).toHaveAttribute("aria-checked", "true");
+    await page.goto(`${BASE}/`);
+    await page.locator("#pricing").getByRole("link", { name: "Start free" }).click();
     await expect(page).toHaveURL(/#create$/);
   });
 
@@ -114,6 +122,21 @@ test.describe("end-to-end", () => {
     // Guests never see it.
     await page.goto(ev.guestUrl);
     await expect(page.getByRole("button", { name: /^Plan · / })).toHaveCount(0);
+  });
+
+  test("Made with Snap & Share badge: shown on Free, hidden on Medium (album + QR card)", async ({ page }) => {
+    const ev = await newEvent(`Badge test ${Date.now()}`);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(ev.guestUrl);
+    await expect(page.getByRole("link", { name: "Made with Snap & Share" })).toBeVisible();
+    await page.goto(ev.hostUrl);
+    await expect(page.locator("#invite").getByText("Made with Snap & Share")).toBeVisible();
+
+    await service().from("events").update({ plan: "medium" }).eq("id", ev.id);
+    await page.goto(ev.guestUrl);
+    await expect(page.getByText("Made with Snap & Share")).toHaveCount(0);
+    await page.goto(ev.hostUrl);
+    await expect(page.getByText("Made with Snap & Share")).toHaveCount(0);
   });
 
   test("events from before pricing have no cap and no expiry", async ({ page }) => {

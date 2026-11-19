@@ -127,14 +127,16 @@ export async function adminDeletePhoto(eventId: string, photoId: string): Promis
   const supabase = createServiceClient();
   const { data: photo } = await supabase
     .from("photos")
-    .select("id, storage_path, guest_name")
+    .select("id, storage_path, guest_name, thumb_path")
     .eq("id", photoId)
     .eq("event_id", eventId)
-    .maybeSingle<{ id: string; storage_path: string; guest_name: string | null }>();
+    .maybeSingle<{ id: string; storage_path: string; guest_name: string | null; thumb_path: string | null }>();
   if (!photo) return { ok: true }; // already gone
   const { error } = await supabase.from("photos").delete().eq("id", photoId);
   if (error) return { ok: false, error: "Couldn't delete the photo." };
-  if (!photo.storage_path.startsWith("https://")) await supabase.storage.from("event-photos").remove([photo.storage_path]);
+  if (!photo.storage_path.startsWith("https://")) {
+    await supabase.storage.from("event-photos").remove([photo.storage_path, ...(photo.thumb_path ? [photo.thumb_path] : [])]);
+  }
   await audit("photo_deleted", eventId, { photo_id: photoId, guest_name: photo.guest_name });
   revalidatePath(`/admin/events/${eventId}`);
   return { ok: true };

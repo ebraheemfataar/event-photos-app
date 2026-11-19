@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getEvent, getEventPhotos } from "@/lib/data";
+import { eventShowsBadge, getAlbumStats, getEvent, getEventPhotos } from "@/lib/data";
 import { formatEventDate } from "@/lib/eventDetails";
 import PhotoGallery from "@/components/PhotoGallery";
 
@@ -33,13 +33,15 @@ export default async function GuestPage({
   const event = await getEvent(id);
   if (!event || !event.is_active) notFound();
 
-  const photos = await getEventPhotos(event.id);
+  const [photos, showBadge, stats] = await Promise.all([getEventPhotos(event.id), eventShowsBadge(event), getAlbumStats(event.id)]);
 
   return (
     <PhotoGallery
       event={event}
       initialPhotos={photos}
+      initialStats={stats}
       mode="guest"
+      showBadge={showBadge}
     />
   );
 }

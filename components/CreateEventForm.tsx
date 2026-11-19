@@ -1,18 +1,35 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { LIMITS, validateDetails } from "@/lib/eventDetails";
 import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
 import { ArrowRightIcon } from "@/components/icons";
 import Spinner from "@/components/Spinner";
+import { formatRand, type Plan } from "@/lib/plans";
+
+/** Fired by the pricing cards' "Choose" buttons (PlanChooseButton). */
+export const CHOOSE_PLAN_EVENT = "snap-choose-plan";
 
 const FIELD =
   "h-13 rounded-[14px] border border-line-strong bg-surface-2 px-4 text-base text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-ink";
 
-export default function CreateEventForm() {
+/** Plans are only offered when payments are on (PayFast configured). Every
+ * album is created on Free; picking a paid plan opens checkout for it on the
+ * host page right after (docs/PRICING.md: "one purchase path"). */
+export default function CreateEventForm({ plans = [], paymentsEnabled = false }: { plans?: Plan[]; paymentsEnabled?: boolean }) {
   const router = useRouter();
+  const [plan, setPlan] = useState("free");
+  const offerPlans = paymentsEnabled && plans.length > 1;
+  useEffect(() => {
+    const onChoose = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (plans.some((p) => p.id === id)) setPlan(id);
+    };
+    window.addEventListener(CHOOSE_PLAN_EVENT, onChoose);
+    return () => window.removeEventListener(CHOOSE_PLAN_EVENT, onChoose);
+  }, [plans]);
   const [name, setName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [note, setNote] = useState("");
@@ -47,7 +64,8 @@ export default function CreateEventForm() {
       return;
     }
 
-    router.push(`/host/${data.id}?t=${data.host_token}`);
+    const paid = offerPlans && plan !== "free" && plans.some((p) => p.id === plan && p.price_cents > 0);
+    router.push(`/host/${data.id}?t=${data.host_token}${paid ? `&upgrade=${plan}` : ""}`);
   }
 
   return (
@@ -115,6 +133,36 @@ export default function CreateEventForm() {
           })}
         </div>
       </fieldset>
+
+      {offerPlans && (
+        <fieldset className="flex flex-col gap-[7px]">
+          <legend className="mb-[7px] text-sm font-medium">
+            Plan <span className="text-ink-3">· pay once, upgrade any time</span>
+          </legend>
+          <div role="radiogroup" aria-label="Plan" className="grid grid-cols-2 gap-2">
+            {plans.map((p) => {
+              const on = p.id === plan;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setPlan(p.id)}
+                  className={`flex flex-col items-start rounded-[16px] border px-3.5 py-2.5 text-left transition-colors ${
+                    on ? "border-btn bg-btn text-btn-ink" : "border-line-strong bg-surface hover:bg-surface-3"
+                  }`}
+                >
+                  <span className="text-sm font-semibold">{p.name}</span>
+                  <span className={`text-xs ${on ? "opacity-80" : "text-ink-3"}`}>
+                    {p.price_cents ? formatRand(p.price_cents) : "Free"} · {p.max_contributors === null ? "no guest limit" : `${p.max_contributors} guests`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
 
       {error && (
         <p role="alert" className="rounded-[14px] bg-danger-bg px-3 py-2.5 text-[13px] text-danger">

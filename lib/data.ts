@@ -14,7 +14,10 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
-const PHOTO_COLUMNS = "id, event_id, storage_path, guest_name, content_type, prompt_id, created_at";
+const PHOTO_COLUMNS = "id, event_id, storage_path, guest_name, content_type, prompt_id, created_at, thumb_path";
+
+import { PHOTO_PAGE_SIZE } from "@/lib/paging";
+export { PHOTO_PAGE_SIZE };
 
 export const EVENT_COLUMNS =
   "id, name, is_active, created_at, theme, event_date, note, cover_path, poster_path, links, plan, expires_at, extra_contributors, legacy_uncapped";
@@ -51,6 +54,12 @@ export const getAddOns = cache(async (): Promise<AddOn[]> => {
   return data ?? [];
 });
 
+/** Whether this event's plan shows "Made with Snap & Share" (plans table). */
+export async function eventShowsBadge(event: Pick<Event, "plan">): Promise<boolean> {
+  const plan = (await getPlans()).find((p) => p.id === event.plan);
+  return plan?.shows_badge ?? true;
+}
+
 /** Plan, usage and deletion date for the host's plan sheet. */
 export async function getPlanStatus(event: Event): Promise<PlanStatus | null> {
   const plans = await getPlans();
@@ -83,15 +92,46 @@ export async function isEventHost(eventId: string, token: unknown): Promise<bool
   return data === true;
 }
 
-export async function getEventPhotos(eventId: string): Promise<Photo[]> {
+/** The newest page of an album's photos (newest first). */
+export async function getEventPhotos(eventId: string, limit = PHOTO_PAGE_SIZE): Promise<Photo[]> {
   if (!isUuid(eventId)) return [];
   const { data } = await createServiceClient()
     .from("photos")
     .select(PHOTO_COLUMNS)
     .eq("event_id", eventId)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit)
     .returns<Photo[]>();
   return data ?? [];
+}
+
+/** The next page: photos older than the given one (keyset on created_at, id). */
+export async function getEventPhotosBefore(
+  eventId: string,
+  before: { createdAt: string; id: string },
+  limit = PHOTO_PAGE_SIZE
+): Promise<Photo[]> {
+  if (!isUuid(eventId) || !isUuid(before?.id) || Number.isNaN(Date.parse(before?.createdAt))) return [];
+  const at = new Date(before.createdAt).toISOString();
+  const { data } = await createServiceClient()
+    .from("photos")
+    .select(PHOTO_COLUMNS)
+    .eq("event_id", eventId)
+    .or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${before.id})`)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 100))
+    .returns<Photo[]>();
+  return data ?? [];
+}
+
+/** Album totals for the header: photos and distinct guest names (0014). */
+export async function getAlbumStats(eventId: string): Promise<{ photos: number; guests: number }> {
+  if (!isUuid(eventId)) return { photos: 0, guests: 0 };
+  const { data } = await createServiceClient().rpc("event_album_stats", { p_event_id: eventId });
+  const r = (data as { photos: number; guests: number }[] | null)?.[0];
+  return { photos: Number(r?.photos ?? 0), guests: Number(r?.guests ?? 0) };
 }
 
 /** Several photos at once, only those that exist and belong to the event. */
@@ -110,12 +150,12 @@ export async function getEventPhotosByIds(eventId: string, photoIds: string[]): 
 /** Storage path + type for serving a photo by id. */
 export async function getPhotoFile(
   photoId: string
-): Promise<{ storage_path: string; content_type: string | null } | null> {
+): Promise<{ storage_path: string; content_type: string | null; thumb_path: string | null } | null> {
   if (!isUuid(photoId)) return null;
   const { data } = await createServiceClient()
     .from("photos")
-    .select("storage_path, content_type")
+    .select("storage_path, content_type, thumb_path")
     .eq("id", photoId)
-    .maybeSingle<{ storage_path: string; content_type: string | null }>();
+    .maybeSingle<{ storage_path: string; content_type: string | null; thumb_path: string | null }>();
   return data;
 }

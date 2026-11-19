@@ -2,7 +2,8 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/server";
-import { isEventHost, isUuid } from "@/lib/data";
+import { getPlans, isEventHost, isUuid } from "@/lib/data";
+import { planLimitsEnforced } from "@/lib/payments/config";
 import { getPromptById } from "@/lib/prompts";
 import { isExpired } from "@/lib/plans";
 import { networkHash } from "@/lib/requestIp";
@@ -35,14 +36,23 @@ export async function startPhotoUpload(input: {
   guestId: string;
   contentType: string;
   hostToken?: string;
-}): Promise<{ ok: true; photoId: string; path: string; token: string } | Failure> {
+  /** The browser will also upload a small JPEG for the grid (0014). */
+  withThumb?: boolean;
+}): Promise<
+  { ok: true; photoId: string; path: string; token: string; thumb: { path: string; token: string } | null } | Failure
+> {
   const { eventId, guestId, contentType, hostToken } = input ?? {};
+  const withThumb = input?.withThumb === true;
   if (!isUuid(eventId) || !isUuid(guestId)) return { ok: false, error: "Something's off with this upload. Reload and try again." };
   const ext = UPLOAD_TYPES[contentType];
   if (!ext) return { ok: false, error: "Only photos (JPG, PNG, WebP, GIF, HEIC) can be shared." };
 
   const supabase = createServiceClient();
-  const { data: event } = await supabase.from("events").select("id, is_active, expires_at").eq("id", eventId).maybeSingle();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, is_active, expires_at, plan, extra_contributors, legacy_uncapped")
+    .eq("id", eventId)
+    .maybeSingle();
   if (!event) return { ok: false, error: "This album doesn't exist." };
   if (!event.is_active) return { ok: false, error: "This album is closed to new photos." };
   if (isExpired(event.expires_at)) return { ok: false, error: "This album has expired and is closed to new photos." };
@@ -74,8 +84,28 @@ export async function startPhotoUpload(input: {
     .eq("event_id", eventId);
   if ((albumPhotos ?? 0) >= ALBUM_MAX_PHOTOS) return { ok: false, error: "This album is full." };
 
+  // Guest cap (Stage B, switched on at launch): a NEW guest beyond the plan's
+  // limit is turned away; guests who already shared keep uploading.
+  if (planLimitsEnforced() && !byHost && !event.legacy_uncapped) {
+    const plan = (await getPlans()).find((p) => p.id === event.plan);
+    if (plan?.max_contributors != null) {
+      const cap = plan.max_contributors + (event.extra_contributors ?? 0);
+      const { count: mine } = await supabase
+        .from("photos")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", eventId)
+        .eq("guest_hash", guestHash);
+      if ((mine ?? 0) === 0) {
+        const { data: usage } = await supabase.rpc("event_usage", { p_event_id: eventId });
+        const contributors = (usage as { contributors: number }[] | null)?.[0]?.contributors ?? 0;
+        if (contributors >= cap) return { ok: false, error: "This album is full. Ask the host to upgrade so more guests can share." };
+      }
+    }
+  }
+
   const photoId = randomUUID();
   const path = `${eventId}/${photoId}.${ext}`;
+  const thumbPath = withThumb ? `${eventId}/${photoId}.thumb.jpg` : null;
   const { error: ticketError } = await supabase.from("upload_tickets").insert({
     photo_id: photoId,
     event_id: eventId,
@@ -84,12 +114,18 @@ export async function startPhotoUpload(input: {
     guest_hash: guestHash,
     ip_hash: ipHash,
     by_host: byHost,
+    thumb_path: thumbPath,
   });
   if (ticketError) return { ok: false, error: "Couldn't start the upload. Try again." };
 
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data) return { ok: false, error: "Couldn't start the upload. Try again." };
-  return { ok: true, photoId, path, token: data.token };
+  let thumb: { path: string; token: string } | null = null;
+  if (thumbPath) {
+    const { data: t } = await supabase.storage.from(BUCKET).createSignedUploadUrl(thumbPath);
+    if (t) thumb = { path: thumbPath, token: t.token };
+  }
+  return { ok: true, photoId, path, token: data.token, thumb };
 }
 
 /** Step 3 (after the browser uploaded the file): check the ticket and the
@@ -107,7 +143,7 @@ export async function finishPhotoUpload(input: {
 
   const { data: ticket } = await supabase
     .from("upload_tickets")
-    .select("photo_id, event_id, storage_path, content_type, guest_hash, by_host, created_at, finished_at")
+    .select("photo_id, event_id, storage_path, content_type, guest_hash, by_host, created_at, finished_at, thumb_path")
     .eq("photo_id", photoId)
     .maybeSingle();
   if (
@@ -143,7 +179,17 @@ export async function finishPhotoUpload(input: {
     .select("photo_id");
   if (!claimed?.length) return { ok: false, error: "That upload expired. Try again." };
 
+  // The thumbnail is optional: keep it only if it arrived and really is a JPEG.
+  let thumbPath: string | null = null;
+  if (ticket.thumb_path) {
+    const { data: signedThumb } = await supabase.storage.from(BUCKET).createSignedUrl(ticket.thumb_path, 60);
+    const thumbHead = signedThumb ? await readHead(signedThumb.signedUrl) : null;
+    if (thumbHead && sniffImageType(thumbHead) === "image/jpeg") thumbPath = ticket.thumb_path;
+    else await supabase.storage.from(BUCKET).remove([ticket.thumb_path]);
+  }
+
   const { error } = await supabase.from("photos").insert({
+    thumb_path: thumbPath,
     id: photoId,
     event_id: eventId,
     storage_path: ticket.storage_path,
@@ -154,8 +200,8 @@ export async function finishPhotoUpload(input: {
     by_host: ticket.by_host,
   });
   if (error) {
-    // e.g. the album closed in between: don't leave the file behind.
-    await supabase.storage.from(BUCKET).remove([ticket.storage_path]);
+    // e.g. the album closed in between: don't leave the files behind.
+    await supabase.storage.from(BUCKET).remove([ticket.storage_path, ...(thumbPath ? [thumbPath] : [])]);
     return { ok: false, error: "Couldn't add the photo. Try again." };
   }
   return { ok: true };
@@ -184,13 +230,13 @@ export async function deleteMyPhoto(input: { eventId: string; photoId: string; g
   const supabase = createServiceClient();
   const { data: photo } = await supabase
     .from("photos")
-    .select("id, storage_path")
+    .select("id, storage_path, thumb_path")
     .eq("id", photoId)
     .eq("event_id", eventId)
     .eq("guest_hash", hashGuest(guestId))
     .maybeSingle();
   if (!photo) return { ok: false, error: "You can only delete photos you shared from this phone." };
-  return removePhotoRow(photo.id, photo.storage_path);
+  return removePhotoRow(photo.id, photo.storage_path, photo.thumb_path);
 }
 
 /** The host removes any photo (replaces the delete_event_photo RPC so the
@@ -202,20 +248,20 @@ export async function removePhotoAsHost(input: { eventId: string; photoId: strin
   }
   const { data: photo } = await createServiceClient()
     .from("photos")
-    .select("id, storage_path")
+    .select("id, storage_path, thumb_path")
     .eq("id", photoId)
     .eq("event_id", eventId)
     .maybeSingle();
   if (!photo) return { ok: true }; // already gone
-  return removePhotoRow(photo.id, photo.storage_path);
+  return removePhotoRow(photo.id, photo.storage_path, photo.thumb_path);
 }
 
-async function removePhotoRow(id: string, storagePath: string): Promise<{ ok: true } | Failure> {
+async function removePhotoRow(id: string, storagePath: string, thumbPath: string | null): Promise<{ ok: true } | Failure> {
   const supabase = createServiceClient();
   // Row first: the 0007 trigger tells every open album to drop it.
   const { error } = await supabase.from("photos").delete().eq("id", id);
   if (error) return { ok: false, error: "Couldn't delete that photo. Try again." };
   // Seed / demo rows point at https URLs, not bucket files.
-  if (!storagePath.startsWith("https://")) await supabase.storage.from(BUCKET).remove([storagePath]);
+  if (!storagePath.startsWith("https://")) await supabase.storage.from(BUCKET).remove([storagePath, ...(thumbPath ? [thumbPath] : [])]);
   return { ok: true };
 }

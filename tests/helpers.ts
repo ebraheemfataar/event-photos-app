@@ -28,6 +28,8 @@ export function localEnv() {
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
     cronSecret: env.CRON_SECRET,
     adminPassword: env.ADMIN_PASSWORD,
+    payfastMerchantId: env.PAYFAST_MERCHANT_ID,
+    payfastPassphrase: env.PAYFAST_PASSPHRASE,
   };
 }
 

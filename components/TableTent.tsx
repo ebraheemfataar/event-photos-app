@@ -12,22 +12,24 @@ export default function TableTent({
   eventName,
   guestUrl,
   theme,
+  badge = false,
 }: {
   eventName: string;
   guestUrl: string;
   theme: string;
+  badge?: boolean;
 }) {
   return createPortal(
     <div className="print-root" data-theme={theme} aria-hidden="true">
       <div className="tent-page">
         <div className="tent-half tent-flip">
-          <Face eventName={eventName} guestUrl={guestUrl} />
+          <Face eventName={eventName} guestUrl={guestUrl} badge={badge} />
         </div>
         <div className="tent-fold">
           <span>Fold here</span>
         </div>
         <div className="tent-half">
-          <Face eventName={eventName} guestUrl={guestUrl} />
+          <Face eventName={eventName} guestUrl={guestUrl} badge={badge} />
         </div>
       </div>
     </div>,
@@ -35,7 +37,7 @@ export default function TableTent({
   );
 }
 
-function Face({ eventName, guestUrl }: { eventName: string; guestUrl: string }) {
+function Face({ eventName, guestUrl, badge }: { eventName: string; guestUrl: string; badge: boolean }) {
   const titleSize = eventName.length > 34 ? "22pt" : eventName.length > 18 ? "28pt" : "34pt";
   return (
     <div className="tent-face">
@@ -64,6 +66,7 @@ function Face({ eventName, guestUrl }: { eventName: string; guestUrl: string }) 
           </li>
         </ol>
         <div className="tent-pill">No app · No login · Just scan</div>
+        {badge && <div className="tent-badge">Made with Snap & Share</div>}
       </div>
     </div>
   );

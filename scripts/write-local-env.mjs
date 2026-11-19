@@ -6,7 +6,7 @@
 // Usage: npm run db:env   (after `npm run db:start`)
 
 import { execSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 let status;
 try {
@@ -24,6 +24,13 @@ if (!url || !anonKey || !serviceKey) {
   process.exit(1);
 }
 
+// Keep your own PayFast sandbox settings across re-runs.
+const kept = existsSync(".env.development.local")
+  ? readFileSync(".env.development.local", "utf8")
+      .split(/\r?\n/)
+      .filter((l) => /^PAYFAST_(MERCHANT_ID|MERCHANT_KEY|PASSPHRASE|SANDBOX)=/.test(l))
+  : [];
+
 writeFileSync(
   ".env.development.local",
   [
@@ -37,6 +44,15 @@ writeFileSync(
     "CRON_SECRET=local-cron-secret",
     "# Signs you in to http://localhost:3000/admin locally. Not a real secret.",
     "ADMIN_PASSWORD=local-admin-password",
+    "# PayFast: put YOUR sandbox account here (sandbox.payfast.co.za → Account",
+    "# Information); these lines are kept when you re-run npm run db:env.",
+    "# PayFast's old shared test merchant (10000100) no longer accepts payments.",
+    ...(kept.length ? kept : ["PAYFAST_MERCHANT_ID=", "PAYFAST_MERCHANT_KEY=", "PAYFAST_PASSPHRASE=", "PAYFAST_SANDBOX=true"]),
+    "# The ITN handler skips the call back to PayFast here only, because PayFast",
+    "# can't reach localhost (ignored in production).",
+    "PAYFAST_SKIP_REMOTE_CHECKS=true",
+    "# Enforce the guest cap locally, like after launch (the seed album is exempt).",
+    "PLAN_LIMITS_ENFORCED=true",
     "",
   ].join("\n")
 );

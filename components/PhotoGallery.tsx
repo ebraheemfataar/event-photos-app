@@ -1,19 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import { fetchEventPhotos } from "@/lib/photoActions";
+import { fetchEventPhotos, fetchOlderPhotos } from "@/lib/photoActions";
+import { PHOTO_PAGE_SIZE } from "@/lib/paging";
 import type { Photo } from "@/lib/types";
 import EventAlbum, { type EventAlbumProps } from "./EventAlbum";
 
 export default function PhotoGallery({
   initialPhotos,
+  initialStats,
   ...albumProps
 }: {
   initialPhotos: Photo[];
-} & Omit<EventAlbumProps, "photos" | "initialPhotoIds" | "onPhotoRemoved">) {
+  /** Album totals from the server (photos, distinct guest names). */
+  initialStats: { photos: number; guests: number };
+} & Omit<EventAlbumProps, "photos" | "initialPhotoIds" | "onPhotoRemoved" | "totals" | "hasMore" | "onLoadMore" | "loadingMore">) {
   const eventId = albumProps.event.id;
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos);
+  // Paged loading: the first page came from the server; older ones on scroll.
+  const [hasMore, setHasMore] = useState(initialPhotos.length >= PHOTO_PAGE_SIZE);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Totals for the header, kept in step with live adds / removes.
+  const [totals, setTotals] = useState(initialStats);
+  // Latest list for the live-update handler (it runs outside render).
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    photosRef.current = photos;
+  });
+
+  /** Apply verified live changes to the list and the header totals. */
+  function applyChanges(removed: Set<string>, added: Photo[]) {
+    const prev = photosRef.current;
+    const kept = removed.size ? prev.filter((p) => !removed.has(p.id)) : prev;
+    const fresh = added.filter((p) => !kept.some((k) => k.id === p.id));
+    const removedCount = prev.length - kept.length;
+    if (fresh.length === 0 && removedCount === 0) return;
+    const known = new Set(prev.map((p) => p.guest_name?.trim().toLowerCase()).filter(Boolean));
+    const newNames = new Set(fresh.map((p) => p.guest_name?.trim().toLowerCase()).filter((n) => n && !known.has(n)));
+    const next = fresh.length ? [...fresh, ...kept] : kept;
+    photosRef.current = next;
+    setPhotos(next);
+    setTotals((t) => ({ photos: Math.max(0, t.photos + fresh.length - removedCount), guests: t.guests + newNames.size }));
+  }
+
+  async function loadMore() {
+    const last = photos[photos.length - 1];
+    if (!hasMore || loadingMore || !last) return;
+    setLoadingMore(true);
+    try {
+      const older = await fetchOlderPhotos(eventId, { createdAt: last.created_at, id: last.id });
+      setPhotos((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        return [...prev, ...older.filter((p) => !seen.has(p.id))];
+      });
+      if (older.length < PHOTO_PAGE_SIZE) setHasMore(false);
+    } catch {
+      // Try again on the next scroll.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   // Photos present on first render; anything else arrived live and animates in.
   const [initialPhotoIds] = useState(() => new Set(initialPhotos.map((p) => p.id)));
 
@@ -47,11 +94,7 @@ export default function PhotoGallery({
           .map(([id]) => found.get(id)!)
           .sort((a, b) => b.created_at.localeCompare(a.created_at));
         if (removed.size === 0 && added.length === 0) return;
-        setPhotos((prev) => {
-          const kept = removed.size ? prev.filter((p) => !removed.has(p.id)) : prev;
-          const fresh = added.filter((p) => !kept.some((k) => k.id === p.id));
-          return fresh.length ? [...fresh, ...kept] : kept;
-        });
+        applyChanges(removed, added);
       } catch {
         // Network hiccup: the photos still show up on the next page load.
       } finally {
@@ -89,7 +132,11 @@ export default function PhotoGallery({
     <EventAlbum
       photos={photos}
       initialPhotoIds={initialPhotoIds}
-      onPhotoRemoved={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
+      onPhotoRemoved={(id) => applyChanges(new Set([id]), [])}
+      totals={totals}
+      hasMore={hasMore}
+      loadingMore={loadingMore}
+      onLoadMore={loadMore}
       {...albumProps}
     />
   );

@@ -648,6 +648,11 @@ body {
   color: var(--card-strip-ink);
   font-size: 7.5pt;
 }
+.tent-badge {
+  margin-top: 3mm;
+  font-size: 7pt;
+  color: var(--card-muted);
+}
 .tent-pill {
   margin-top: 6mm;
   align-self: flex-start;

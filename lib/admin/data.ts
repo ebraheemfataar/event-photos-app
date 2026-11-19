@@ -88,6 +88,30 @@ export async function getAdminPhotos(eventId: string, limit = 300): Promise<Phot
   return data ?? [];
 }
 
+export type AdminPurchase = {
+  id: string;
+  kind: "plan" | "add_on";
+  item: string;
+  amount_cents: number;
+  status: "pending" | "paid" | "failed" | "cancelled";
+  provider_ref: string | null;
+  email: string | null;
+  created_at: string;
+  paid_at: string | null;
+};
+
+/** Every purchase for one album, newest first (event_purchases, 0015). */
+export async function getAdminPurchases(eventId: string): Promise<AdminPurchase[]> {
+  if (!isUuid(eventId)) return [];
+  const { data } = await createServiceClient()
+    .from("event_purchases")
+    .select("id, kind, item, amount_cents, status, provider_ref, email, created_at, paid_at")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false })
+    .returns<AdminPurchase[]>();
+  return data ?? [];
+}
+
 export type AuditRow = { id: number; at: string; action: string; event_id: string | null; detail: Record<string, unknown> };
 
 export async function getAudit(eventId?: string, limit = 30): Promise<AuditRow[]> {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import { compressImage } from "@/lib/compressImage";
+import { compressImage, makeThumbnail } from "@/lib/compressImage";
 import { MAX_UPLOAD_BYTES, PASSTHROUGH_TYPES } from "@/lib/compressOptions";
 import { finishPhotoUpload, startPhotoUpload } from "@/lib/uploadActions";
 import { getGuestId, rememberMyPhoto } from "@/lib/guestId";
@@ -107,8 +107,9 @@ export default function PhotoUploadForm({
     try {
       for (const item of queue) {
         const compressed = await compressImage(item.file);
-        // 1. The server checks limits and issues a one-time upload URL.
-        const start = await startPhotoUpload({ eventId, guestId, contentType: compressed.type, hostToken });
+        const thumb = await makeThumbnail(compressed);
+        // 1. The server checks limits and issues one-time upload URLs.
+        const start = await startPhotoUpload({ eventId, guestId, contentType: compressed.type, hostToken, withThumb: Boolean(thumb) });
         if (!start.ok) throw new UploadError(start.error);
 
         // 2. Upload straight to storage with it.
@@ -116,6 +117,13 @@ export default function PhotoUploadForm({
           .from("event-photos")
           .uploadToSignedUrl(start.path, start.token, compressed, { contentType: compressed.type });
         if (uploadError) throw uploadError;
+        // The grid thumbnail is a nice-to-have: a failure here never blocks the photo.
+        if (thumb && start.thumb) {
+          await supabase.storage
+            .from("event-photos")
+            .uploadToSignedUrl(start.thumb.path, start.thumb.token, thumb, { contentType: "image/jpeg" })
+            .catch(() => null);
+        }
 
         // 3. The server checks the file and adds it to the album.
         const done = await finishPhotoUpload({
