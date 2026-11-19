@@ -20,6 +20,7 @@ import { eventHandle, promptShortLabel, promptSwatch } from "@/lib/display";
 import PhotoUploadForm from "@/components/PhotoUploadForm";
 import QRCodeCard from "@/components/QRCodeCard";
 import Sheet from "@/components/Sheet";
+import AddPhotoFab from "@/components/AddPhotoFab";
 import Spinner from "@/components/Spinner";
 import StoryViewer from "@/components/StoryViewer";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -550,6 +551,14 @@ export default function EventAlbum({
         </main>
       </div>
 
+      {/* Floating "Add photos" (guests and the host, while uploads are open). */}
+      {canUpload && isActive && (
+        <AddPhotoFab
+          onClick={() => setUploadOpen(true)}
+          hidden={uploadOpen || openIndex >= 0 || removeTarget !== null || editOpen || infoOpen || qrOpen || planOpen}
+        />
+      )}
+
       {/* Mobile bottom tab bar */}
       <nav
         aria-label="Album navigation"
@@ -558,16 +567,6 @@ export default function EventAlbum({
         <BarItem active={view === "grid"} onClick={() => showView("grid")} icon={<AlbumIcon size={24} filled={view === "grid"} />}>
           Album
         </BarItem>
-        {mode === "guest" && (
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            aria-label="Add a photo"
-            className="flex h-11 w-[60px] items-center justify-center rounded-[14px] bg-btn text-btn-ink transition-transform active:scale-95"
-          >
-            <PlusIcon size={24} />
-          </button>
-        )}
         {isHost && (
           <button
             type="button"
