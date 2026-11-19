@@ -27,6 +27,8 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | A ✅ shipped; B 🔧 built (0015, off until launch); C–D planned | L |
 | — | Backlog / tech debt | Ongoing | — |
 
+**Launch day:** everything to switch on paid plans is in [LAUNCH.md](LAUNCH.md).
+
 **Build order from here:** **2c** (doubles as
 Monetisation Stage A's enforcement point) → **Monetisation A** (plan columns,
 expiry job) → **Admin portal** + **7a** → **Monetisation B** (paid plans, PayFast) → Phase 4 leftovers →

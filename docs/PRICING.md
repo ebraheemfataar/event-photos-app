@@ -67,7 +67,7 @@ Video uploads (Medium+; blocked on Free/Small in the 2c upload step), full-res d
 
 **Built in Stage B:** `event_purchases`; PayFast checkout from the host's plan sheet (plans and extras, email at checkout) and from the create form's plan picker (album created on Free, checkout opens straight after); verified-ITN-only "paid" (signature, PayFast IP, VALID call-back, merchant, exact amount, idempotent); upgrades charge the difference; `/pay/done` return page; guest cap behind `PLAN_LIMITS_ENFORCED`; "Choose" on pricing cards; `/pricing` page with FAQ; badge on Free/Small (album footer, QR card, PNG, tent); receipts via Resend when configured. Tested end to end against PayFast's public sandbox merchant with a simulated ITN.
 
-**Launch checklist:** see `supabase/launch/pricing-launch.sql`.
+**Launch checklist:** [LAUNCH.md](LAUNCH.md) (one place for everything; the SQL step is `supabase/launch/pricing-launch.sql`).
 
 ## Open items
 - Refund policy and terms of sale (needed before Stage B goes live) — `/terms` has original draft terms (CPA, ECT Act 7-day cooling-off until guests start sharing, POPIA); set `SUPPORT_EMAIL` in app/terms/page.tsx and have them reviewed before launch.
