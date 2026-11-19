@@ -369,13 +369,16 @@ export default function EventAlbum({
         {/* Mobile header */}
         <header className="flex h-14 items-center justify-between pl-[18px] pr-2 lg:hidden">
           <div className="flex min-w-0 items-center gap-2">
-            {isHost ? (
-              <LockIcon size={16} className="shrink-0" />
-            ) : (
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-btn text-btn-ink">
+            {/* Back to the Snap & Share home page (phones have no sidebar). */}
+            <Link
+              href="/"
+              aria-label="Snap & Share home"
+              className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-btn text-btn-ink">
                 <LogoIcon size={15} />
               </span>
-            )}
+            </Link>
             <span className="truncate text-[17px] font-semibold tracking-[-0.02em]">{handle}</span>
             {isHost && (
               <span className="mono inline-flex h-[22px] shrink-0 items-center rounded-full bg-surface-3 px-2 text-[9px] text-ink-2">

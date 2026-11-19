@@ -69,19 +69,22 @@ export default function DemoAlbum({
       />
 
       <div data-theme={theme}>
+        {/* The pulse sits on this wrapper, behind the button (globals.css → .fab-pulse). */}
+        <div className="fab-pulse pulse-offset fixed bottom-[calc(90px+env(safe-area-inset-bottom))] left-4 z-40 rounded-full lg:bottom-8 lg:left-[calc(244px+2rem)]">
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
           aria-label={`Change theme (now ${themeName(theme)})`}
-          className="fixed bottom-[calc(96px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-surface pl-2 pr-4 text-sm font-semibold text-ink shadow-2 transition-transform focus-visible:[box-shadow:var(--ring)] active:scale-95 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0 whitespace-nowrap"
+          className="flex h-11 items-center gap-2 whitespace-nowrap rounded-full border border-line bg-surface px-2 text-sm font-semibold text-ink shadow-2 transition-transform focus-visible:[box-shadow:var(--ring)] active:scale-95 sm:pr-4"
         >
           <span aria-hidden="true" className="flex -space-x-1.5">
             {swatches.map((c) => (
               <span key={c} className="h-6 w-6 rounded-full border-2 border-[var(--surface)]" style={{ background: c }} />
             ))}
           </span>
-          Theme: {themeName(theme)}
+          <span className="hidden sm:inline">Theme: {themeName(theme)}</span>
         </button>
+        </div>
 
         <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Event theme">
           <p className="mb-3 text-sm text-ink-2">
