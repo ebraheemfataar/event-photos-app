@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AddOn, Plan, PlanStatus } from "@/lib/plans";
 import { formatRand, photosNearlyFull, planMood, upgradePriceCents } from "@/lib/plans";
 import Sheet from "@/components/Sheet";
@@ -115,6 +115,8 @@ export default function PlanSheet({
   const [selected, setSelected] = useState<string | null>(initialSelected);
   const [selectedAddOn, setSelectedAddOn] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const mood = planMood(status);
@@ -129,11 +131,13 @@ export default function PlanSheet({
       ? { kind: "add_on" as const, id: targetAddOn.id }
       : null;
   const payAmount = target ? upgradePriceCents(status.priceCents, target) : (targetAddOn?.price_cents ?? 0);
+  const choiceLabel = target ? `${target.name} plan` : (targetAddOn?.name ?? "");
 
   function close() {
     setSelected(null);
     setSelectedAddOn(null);
     setPayError(null);
+    setEmailError(null);
     onClose();
   }
 
@@ -145,6 +149,14 @@ export default function PlanSheet({
   /** Start checkout and hand the browser to PayFast. */
   async function pay() {
     if (!choice || !eventId || !hostToken) return;
+    // Check the email here first, so a missing one is pointed out clearly
+    // (the server checks it again).
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+      setEmailError(email.trim() ? "That email doesn’t look right." : "Add your email so we can send your receipt.");
+      emailRef.current?.focus();
+      return;
+    }
+    setEmailError(null);
     setPaying(true);
     setPayError(null);
     const r = await startCheckout({ eventId, hostToken, item: choice, email });
@@ -178,17 +190,56 @@ export default function PlanSheet({
             {choice ? (
               UPGRADES_LIVE ? (
                 <>
-                  <label className="flex h-12 items-center gap-2.5 rounded-[14px] border border-line-strong bg-surface-2 px-4 text-left focus-within:border-ink">
-                    <span className="whitespace-nowrap text-sm text-ink-3">Receipt to</span>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      aria-label="Email for your receipt"
-                      className="h-full min-w-0 flex-1 bg-transparent text-right text-base outline-none focus-visible:[box-shadow:none]"
-                    />
+                  <div className="flex items-center justify-between gap-3 rounded-[14px] bg-surface px-4 py-2.5 text-left">
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3">You’re buying</span>
+                      <span className="block truncate text-[15px] font-semibold">{choiceLabel}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <b className="text-[15px] tabular-nums">{formatRand(payAmount)}</b>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelected(null);
+                          setSelectedAddOn(null);
+                          setEmailError(null);
+                        }}
+                        className="text-[13px] font-semibold text-ink-3 underline hover:text-ink"
+                      >
+                        Change
+                      </button>
+                    </span>
+                  </div>
+                  <label className="flex flex-col gap-1.5 text-left">
+                    <span className="text-sm font-semibold">Email for your receipt</span>
+                    <span
+                      className={`flex h-[52px] items-center gap-2.5 rounded-[14px] border-[1.5px] bg-surface px-4 shadow-1 transition-colors ${
+                        emailError ? "border-danger" : "border-line-strong focus-within:border-ink"
+                      }`}
+                    >
+                      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-ink-3">
+                        <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                        <path d="m4 7 8 6 8-6" />
+                      </svg>
+                      <input
+                        ref={emailRef}
+                        type="email"
+                        inputMode="email"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) setEmailError(null);
+                        }}
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        aria-invalid={emailError ? true : undefined}
+                        aria-describedby="receipt-email-help"
+                        className="h-full min-w-0 flex-1 bg-transparent text-base outline-none focus-visible:[box-shadow:none]"
+                      />
+                    </span>
+                    <span id="receipt-email-help" className={`text-[12.5px] ${emailError ? "font-medium text-danger" : "text-ink-3"}`}>
+                      {emailError ?? "We’ll send your receipt here. No spam."}
+                    </span>
                   </label>
                   {payError && (
                     <p role="alert" className="rounded-[12px] bg-danger-bg px-3 py-2 text-left text-[13px] text-danger">

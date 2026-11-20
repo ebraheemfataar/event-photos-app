@@ -157,6 +157,12 @@ test.describe("end-to-end", () => {
     await page.getByRole("button", { name: /^Plan:/ }).first().click();
     const sheet = page.getByRole("dialog", { name: "Your plan" });
     await sheet.getByRole("radio", { name: /Medium/ }).click();
+    await expect(page.getByText("You’re buying")).toBeVisible();
+    await expect(page.getByText("Medium plan", { exact: true })).toBeVisible();
+    // No email: pointed out before anything goes to PayFast.
+    await page.getByRole("button", { name: "Continue to payment · R399" }).click();
+    await expect(page.getByText("Add your email so we can send your receipt.")).toBeVisible();
+    await expect(page.getByLabel("Email for your receipt")).toBeFocused();
     await page.getByLabel("Email for your receipt").fill("host@example.com");
     await page.getByRole("button", { name: "Continue to payment · R399" }).click();
     await expect(page.getByText("PayFast sandbox (stubbed)")).toBeVisible({ timeout: 15_000 });
