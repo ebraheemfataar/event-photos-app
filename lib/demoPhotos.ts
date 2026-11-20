@@ -32,23 +32,25 @@ export function demoEvent(createdAt: string): Event {
     ],
     plan: "small",
     expires_at: new Date(new Date(createdAt).getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-    extra_contributors: 0,
+    extra_photos: 0,
     legacy_uncapped: false,
+    event_type: "wedding",
+    card_text: null,
   };
 }
 
 export const DEMO_ADD_ONS: AddOn[] = [
-  { id: "keep_1yr", name: "Keep for 1 more year", price_cents: 4900, extra_contributors: 0, extra_retention_days: 365, stackable: false, sort_order: 1 },
-  { id: "guests_50", name: "+50 guests", price_cents: 7900, extra_contributors: 50, extra_retention_days: 0, stackable: true, sort_order: 2 },
+  { id: "keep_1yr", name: "Keep for 1 more year", price_cents: 4900, extra_photos: 0, extra_retention_days: 365, stackable: false, sort_order: 1 },
+  { id: "photos_100", name: "+100 photos", price_cents: 7900, extra_photos: 100, extra_retention_days: 0, stackable: true, sort_order: 2 },
 ];
 
 /** Plan sheet contents for /demo?as=host (no database). Mirrors the seeded
- * `plans` table in 0011_plans.sql. */
+ * `plans` table (0011_plans.sql, photo limits from 0016). */
 export const DEMO_PLANS: Plan[] = [
-  { id: "free", name: "Free", price_cents: 0, max_contributors: 20, retention_days: 30, shows_badge: true, sort_order: 1 },
-  { id: "small", name: "Small", price_cents: 14900, max_contributors: 100, retention_days: 90, shows_badge: true, sort_order: 2 },
-  { id: "medium", name: "Medium", price_cents: 39900, max_contributors: 300, retention_days: 365, shows_badge: false, sort_order: 3 },
-  { id: "unlimited", name: "Unlimited", price_cents: 79900, max_contributors: null, retention_days: null, shows_badge: false, sort_order: 4 },
+  { id: "free", name: "Free", price_cents: 0, max_photos: 50, retention_days: 30, shows_badge: true, sort_order: 1 },
+  { id: "small", name: "Small", price_cents: 14900, max_photos: 100, retention_days: 90, shows_badge: true, sort_order: 2 },
+  { id: "medium", name: "Medium", price_cents: 39900, max_photos: 500, retention_days: 365, shows_badge: false, sort_order: 3 },
+  { id: "large", name: "Large", price_cents: 79900, max_photos: 2000, retention_days: 730, shows_badge: false, sort_order: 4 },
 ];
 
 /** [unsplash id, guest name, prompt id, minutes ago] — newest first. */

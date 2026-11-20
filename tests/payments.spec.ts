@@ -11,15 +11,17 @@ import { BASE, guestHash, localEnv, makeJpeg } from "./helpers";
 // app/api/payfast/notify) and the guest cap (lib/uploadActions).
 
 const PLANS: Plan[] = [
-  { id: "free", name: "Free", price_cents: 0, max_contributors: 20, retention_days: 30, shows_badge: true, sort_order: 1 },
-  { id: "small", name: "Small", price_cents: 14900, max_contributors: 100, retention_days: 90, shows_badge: true, sort_order: 2 },
-  { id: "medium", name: "Medium", price_cents: 39900, max_contributors: 300, retention_days: 365, shows_badge: false, sort_order: 3 },
-  { id: "unlimited", name: "Unlimited", price_cents: 79900, max_contributors: null, retention_days: null, shows_badge: false, sort_order: 4 },
+  { id: "free", name: "Free", price_cents: 0, max_photos: 50, retention_days: 30, shows_badge: true, sort_order: 1 },
+  { id: "small", name: "Small", price_cents: 14900, max_photos: 100, retention_days: 90, shows_badge: true, sort_order: 2 },
+  { id: "medium", name: "Medium", price_cents: 39900, max_photos: 500, retention_days: 365, shows_badge: false, sort_order: 3 },
+  { id: "large", name: "Large", price_cents: 79900, max_photos: 2000, retention_days: 730, shows_badge: false, sort_order: 4 },
 ];
 const ADD_ONS: AddOn[] = [
-  { id: "keep_1yr", name: "Keep for 1 more year", price_cents: 4900, extra_contributors: 0, extra_retention_days: 365, stackable: false, sort_order: 1 },
-  { id: "guests_50", name: "+50 guests", price_cents: 7900, extra_contributors: 50, extra_retention_days: 0, stackable: true, sort_order: 2 },
+  { id: "keep_1yr", name: "Keep for 1 more year", price_cents: 4900, extra_photos: 0, extra_retention_days: 365, stackable: false, sort_order: 1 },
+  { id: "photos_100", name: "+100 photos", price_cents: 7900, extra_photos: 100, extra_retention_days: 0, stackable: true, sort_order: 2 },
 ];
+// A plan with no limits, to check the rules that guard against pointless extras.
+const NO_LIMIT: Plan = { id: "nolimit", name: "No limit", price_cents: 99900, max_photos: null, retention_days: null, shows_badge: false, sort_order: 5 };
 const DAY = 86_400_000;
 
 test.describe("signatures and amounts", () => {
@@ -64,18 +66,21 @@ test.describe("signatures and amounts", () => {
 });
 
 test.describe("pricing rules", () => {
-  const ev = { plan: "free", created_at: "2026-11-01T00:00:00Z", expires_at: "2026-12-01T00:00:00Z", extra_contributors: 0, legacy_uncapped: false };
+  const ev = { plan: "free", created_at: "2026-11-01T00:00:00Z", expires_at: "2026-12-01T00:00:00Z", extra_photos: 0, legacy_uncapped: false };
 
   test("upgrades cost the difference; no downgrades; extras only where they make sense", () => {
     expect(priceFor(ev, PLANS, ADD_ONS, { kind: "plan", id: "medium" })).toMatchObject({ ok: true, amountCents: 39900 });
     expect(priceFor({ ...ev, plan: "small" }, PLANS, ADD_ONS, { kind: "plan", id: "medium" })).toMatchObject({ ok: true, amountCents: 25000 });
     expect(priceFor({ ...ev, plan: "medium" }, PLANS, ADD_ONS, { kind: "plan", id: "small" }).ok).toBe(false);
     expect(priceFor(ev, PLANS, ADD_ONS, { kind: "plan", id: "free" }).ok).toBe(false);
-    expect(priceFor(ev, PLANS, ADD_ONS, { kind: "add_on", id: "guests_50" })).toMatchObject({ ok: true, amountCents: 7900 });
-    expect(priceFor({ ...ev, plan: "unlimited", expires_at: null }, PLANS, ADD_ONS, { kind: "add_on", id: "guests_50" }).ok).toBe(false);
-    expect(priceFor({ ...ev, plan: "unlimited", expires_at: null }, PLANS, ADD_ONS, { kind: "add_on", id: "keep_1yr" }).ok).toBe(false);
+    expect(priceFor({ ...ev, plan: "medium" }, PLANS, ADD_ONS, { kind: "plan", id: "large" })).toMatchObject({ ok: true, amountCents: 40000 });
+    expect(priceFor(ev, PLANS, ADD_ONS, { kind: "add_on", id: "photos_100" })).toMatchObject({ ok: true, amountCents: 7900 });
+    expect(priceFor({ ...ev, plan: "large" }, PLANS, ADD_ONS, { kind: "add_on", id: "photos_100" }).ok, "Large can still add photos").toBe(true);
+    const withNoLimit = [...PLANS, NO_LIMIT];
+    expect(priceFor({ ...ev, plan: "nolimit", expires_at: null }, withNoLimit, ADD_ONS, { kind: "add_on", id: "photos_100" }).ok).toBe(false);
+    expect(priceFor({ ...ev, plan: "nolimit", expires_at: null }, withNoLimit, ADD_ONS, { kind: "add_on", id: "keep_1yr" }).ok).toBe(false);
     expect(priceFor(ev, PLANS, ADD_ONS, { kind: "add_on", id: "keep_1yr" }, ["keep_1yr"]).ok, "once only").toBe(false);
-    expect(priceFor(ev, PLANS, ADD_ONS, { kind: "add_on", id: "guests_50" }, ["guests_50"]).ok, "stackable").toBe(true);
+    expect(priceFor(ev, PLANS, ADD_ONS, { kind: "add_on", id: "photos_100" }, ["photos_100"]).ok, "stackable").toBe(true);
   });
 
   test("what a paid purchase changes", () => {
@@ -84,11 +89,15 @@ test.describe("pricing rules", () => {
       plan: "medium",
       expires_at: new Date(Date.parse(ev.created_at) + 365 * DAY).toISOString(),
     });
-    expect(effectsOf(ev, PLANS, ADD_ONS, { kind: "plan", id: "unlimited" }, now)).toEqual({ plan: "unlimited", expires_at: null });
+    expect(effectsOf(ev, PLANS, ADD_ONS, { kind: "plan", id: "large" }, now)).toEqual({
+      plan: "large",
+      expires_at: new Date(Date.parse(ev.created_at) + 730 * DAY).toISOString(),
+    });
+    expect(effectsOf(ev, [...PLANS, NO_LIMIT], ADD_ONS, { kind: "plan", id: "nolimit" }, now)).toEqual({ plan: "nolimit", expires_at: null });
     // Early album: kept from now, not from when it was made.
     expect(effectsOf({ ...ev, legacy_uncapped: true, expires_at: null, created_at: "2025-01-01T00:00:00Z" }, PLANS, ADD_ONS, { kind: "plan", id: "small" }, now))
       .toEqual({ plan: "small", expires_at: new Date(now + 90 * DAY).toISOString() });
-    expect(effectsOf(ev, PLANS, ADD_ONS, { kind: "add_on", id: "guests_50" }, now)).toEqual({ extra_contributors: 50 });
+    expect(effectsOf(ev, PLANS, ADD_ONS, { kind: "add_on", id: "photos_100" }, now)).toEqual({ extra_photos: 100 });
     expect(effectsOf(ev, PLANS, ADD_ONS, { kind: "add_on", id: "keep_1yr" }, now)).toEqual({
       expires_at: new Date(Date.parse(ev.expires_at) + 365 * DAY).toISOString(),
     });
@@ -190,7 +199,7 @@ test.describe("end-to-end", () => {
     await page.goto(`${BASE}/pay/done?p=${purchaseId}`);
     await expect(page.getByRole("heading", { name: "Payment successful" })).toBeVisible();
     await expect(page.getByText(/Medium plan is now on/)).toBeVisible();
-    await expect(page.getByText("Up to 300 guests can share")).toBeVisible();
+    await expect(page.getByText("Room for 500 photos")).toBeVisible();
     // Finds the album via "Your albums" (saved when the host page opened).
     await page.getByRole("link", { name: /^Back to Pay test/ }).click();
     await expect(page.getByRole("button", { name: /^Plan: Medium/ }).first()).toBeVisible();
@@ -213,9 +222,9 @@ test.describe("end-to-end", () => {
     expect(data!.status).toBe("cancelled");
   });
 
-  test("guest cap: a new guest beyond the Free limit is turned away; existing guests keep sharing", async ({ page }) => {
+  test("photo limit: a full album turns everyone away, the host too; +100 photos opens it again", async ({ page }) => {
     const ev = await newEvent(`Cap test ${Date.now()}`);
-    const guests = Array.from({ length: 20 }, () => randomUUID());
+    const guests = Array.from({ length: 50 }, () => randomUUID());
     const rows = guests.map((g) => ({
       id: randomUUID(),
       event_id: ev.id,
@@ -240,8 +249,25 @@ test.describe("end-to-end", () => {
     await expect(newcomer.p.getByText(/This album is full/)).toBeVisible({ timeout: 20_000 });
     await newcomer.ctx.close();
 
+    // Guests who already shared are full too (every photo counts).
     const regular = await tryUpload(guests[0]);
-    await expect(regular.p.getByText("Shared to the album")).toBeVisible({ timeout: 20_000 });
+    await expect(regular.p.getByText(/This album is full/)).toBeVisible({ timeout: 20_000 });
     await regular.ctx.close();
+
+    // And the host.
+    const host = await page.context().browser()!.newContext({ viewport: { width: 390, height: 844 } });
+    const hp = await host.newPage();
+    await hp.goto(ev.hostUrl);
+    await hp.getByRole("button", { name: "Add photos" }).first().click();
+    await hp.locator('input[type="file"][multiple]').setInputFiles({ name: "p.jpg", mimeType: "image/jpeg", buffer: await makeJpeg(hp) });
+    await hp.getByRole("button", { name: "Share photo" }).click();
+    await expect(hp.getByText(/Your album is full/).first()).toBeVisible({ timeout: 20_000 });
+    await host.close();
+
+    // +100 photos (as a paid add-on would set it) makes room again.
+    await service().from("events").update({ extra_photos: 100 }).eq("id", ev.id);
+    const again = await tryUpload(randomUUID());
+    await expect(again.p.getByText("Shared to the album")).toBeVisible({ timeout: 20_000 });
+    await again.ctx.close();
   });
 });

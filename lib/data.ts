@@ -20,13 +20,13 @@ import { PHOTO_PAGE_SIZE } from "@/lib/paging";
 export { PHOTO_PAGE_SIZE };
 
 export const EVENT_COLUMNS =
-  "id, name, is_active, created_at, theme, event_date, note, cover_path, poster_path, links, plan, expires_at, extra_contributors, legacy_uncapped";
+  "id, name, is_active, created_at, theme, event_date, note, cover_path, poster_path, links, plan, expires_at, extra_photos, legacy_uncapped, event_type, card_text";
 
 /** All plans, cheapest first. Limits live only in the `plans` table (0011). */
 export const getPlans = cache(async (): Promise<Plan[]> => {
   const { data } = await createServiceClient()
     .from("plans")
-    .select("id, name, price_cents, max_contributors, retention_days, shows_badge, sort_order")
+    .select("id, name, price_cents, max_photos, retention_days, shows_badge, sort_order")
     .order("sort_order")
     .returns<Plan[]>();
   return data ?? [];
@@ -48,7 +48,7 @@ export async function getPricing(): Promise<{ plans: Plan[]; addOns: AddOn[] }> 
 export const getAddOns = cache(async (): Promise<AddOn[]> => {
   const { data } = await createServiceClient()
     .from("add_ons")
-    .select("id, name, price_cents, extra_contributors, extra_retention_days, stackable, sort_order")
+    .select("id, name, price_cents, extra_photos, extra_retention_days, stackable, sort_order")
     .order("sort_order")
     .returns<AddOn[]>();
   return data ?? [];

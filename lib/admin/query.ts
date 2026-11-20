@@ -25,7 +25,7 @@ export type AdminStatus = (typeof ADMIN_STATUSES)[number];
 export const ADMIN_SORTS = ["created", "name", "photos", "guests", "storage", "last_upload"] as const;
 export type AdminSort = (typeof ADMIN_SORTS)[number];
 
-export const ADMIN_PLAN_FILTERS = ["free", "small", "medium", "unlimited", "early"] as const;
+export const ADMIN_PLAN_FILTERS = ["free", "small", "medium", "large", "early"] as const;
 export type AdminPlanFilter = (typeof ADMIN_PLAN_FILTERS)[number];
 
 export type AdminListQuery = {

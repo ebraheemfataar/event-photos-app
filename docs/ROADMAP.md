@@ -23,6 +23,7 @@ every phase are in [`docs/design/snap-share-v4-spec.html`](design/snap-share-v4-
 | **A** | **Admin portal** (developer: all albums, close, delete, stats) | 🔧 Built (migration 0012) | M |
 | 8 | Reports & moderation | Planned | M |
 | 9 | Event location | Planned | S–M |
+| **E** | **Before an album expires:** reminders, "Download all" ZIP, grace period | Planned | M |
 | **T** | **Event themes + event details** (cover, poster, date, note, links, link previews, table tent) | ✅ Shipped (`d8ca440`, migration 0008) | M |
 | **$A–D** | **Monetisation** — see [PRICING.md](PRICING.md) | A ✅ shipped; B 🔧 built (0015, off until launch); C–D planned | L |
 | — | Backlog / tech debt | Ongoing | — |
@@ -227,8 +228,8 @@ Hosts pick a preset when creating the event (changeable later): **Sunset Pop** (
 
 ## Monetisation
 
-Once-off per-event plans (Free / R149 / R399 / R799) priced by contributor
-count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md):
+Once-off per-event plans (Free / R149 / R399 / R799) priced by the number of
+photos (50 / 100 / 500 / 2,000 since 0016; it was contributors before), PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md):
 - **Stage A — Foundations:** 🔧 built — `plans` / `add_ons` tables, `events.plan` / `expires_at`, usage + host plan sheet, daily expiry job (report-only until launch). Reminders wait on the email-provider decision.
 - **Stage B — Paid plans v1:** contributor cap enforced on the server, plan picker + pricing page, upgrade for the difference, `event_purchases`, PayFast checkout with verified ITN only.
 - **Stage C — Needs host accounts (Phase 7):** 3-event pack, returning-host coupon, Pro subscription, co-hosts, own logo.
@@ -239,6 +240,22 @@ count, PayFast first. Full plan, decisions and stages in [PRICING.md](PRICING.md
 Screens and code are ready; only the account is missing.
 - ✅ Templates: receipt and expiry reminders (7 days / 1 day) in `lib/emailTemplates.ts`, previewed at `/admin/emails`; the receipt is sent from the verified ITN.
 - To do: create a Resend account, verify a domain (DNS records), set `RESEND_API_KEY` + `EMAIL_FROM` on Vercel; then add the reminder sending to the daily expiry job (`app/api/cron/expire`). Needs a domain of our own first (also for a proper web address).
+
+## Before an album expires · Size M · planned
+
+Idea (2026-11-20): an album's deletion date should never come as a surprise,
+and it's a natural moment to offer "keep it longer". Builds on what exists:
+the expiry reminder email template (`/admin/emails`) and the daily expiry
+job (`app/api/cron/expire`), which already knows which albums are due.
+
+Order to build in:
+1. **Host email for free albums.** Today the email is only asked for at checkout, so free hosts can't be reminded. Add an optional "Email me before my album is deleted" on the host page (and possibly at creation). Stored like `events.host_email`, never shown on pages. Host accounts (Phase 7) replace this later.
+2. **"Download all photos" (ZIP) on the host page.** Built on demand and streamed to the browser, so nothing extra is stored. First check Vercel's function time / response size limits with a big album (2,000 photos is ~1–2 GB). Fallbacks if that doesn't hold: a background job that builds the ZIP into storage and emails a link that expires after 7 days (temporarily doubles that album's storage), or building the ZIP in the browser (a new dependency; phones may run out of memory on big albums).
+3. **Reminder emails at 7 days and 1 day** before deletion, from the daily job, each with **Download all photos** and **Keep it longer** (the "Keep 1 more year" add-on or an upgrade). Never attach the photos: emails cap out around 25–40 MB, so it's always a link. Needs Resend (see Email below).
+4. **Grace period:** after the expiry date, hide the album for ~7 days before deleting it for good, so a host who missed the emails can still download or pay to keep it. Costs a week of storage.
+5. **Later:** push notifications. They need the site installable as an app (PWA), and iPhone support is limited, so email comes first. The host page already shows the countdown, amber in the last week.
+
+To decide: `PRICING.md` lists "ZIP export" as a future top-plan feature. Proposal: "download everything before deletion" is **free on every plan** (trust; POPIA leans towards letting people take their data), while paid plans keep extras such as full-resolution originals and a live slideshow.
 
 ## Backlog / tech debt
 

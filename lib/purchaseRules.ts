@@ -10,7 +10,7 @@ type EventLike = {
   plan: string;
   created_at: string;
   expires_at: string | null;
-  extra_contributors: number;
+  extra_photos: number;
   legacy_uncapped: boolean;
 };
 
@@ -43,8 +43,8 @@ export function priceFor(
   if (item?.kind === "add_on") {
     const addOn = addOns.find((a) => a.id === item.id);
     if (!addOn) return { ok: false, error: "Unknown add-on." };
-    if (addOn.extra_contributors > 0 && (current.max_contributors === null || event.legacy_uncapped)) {
-      return { ok: false, error: "Your album already has no guest limit." };
+    if (addOn.extra_photos > 0 && (current.max_photos === null || event.legacy_uncapped)) {
+      return { ok: false, error: "Your album already has no photo limit." };
     }
     if (addOn.extra_retention_days > 0 && event.expires_at === null) return { ok: false, error: "Your album is already kept forever." };
     if (!addOn.stackable && paidAddOns.includes(addOn.id)) return { ok: false, error: "You already have that one." };
@@ -61,7 +61,7 @@ export function effectsOf(
   addOns: AddOn[],
   item: PurchaseItem,
   now = Date.now()
-): Partial<Pick<EventLike, "plan" | "expires_at" | "extra_contributors">> {
+): Partial<Pick<EventLike, "plan" | "expires_at" | "extra_photos">> {
   if (item.kind === "plan") {
     const target = plans.find((p) => p.id === item.id);
     if (!target) return {};
@@ -75,8 +75,8 @@ export function effectsOf(
   }
   const addOn = addOns.find((a) => a.id === item.id);
   if (!addOn) return {};
-  const patch: Partial<Pick<EventLike, "expires_at" | "extra_contributors">> = {};
-  if (addOn.extra_contributors > 0) patch.extra_contributors = event.extra_contributors + addOn.extra_contributors;
+  const patch: Partial<Pick<EventLike, "expires_at" | "extra_photos">> = {};
+  if (addOn.extra_photos > 0) patch.extra_photos = event.extra_photos + addOn.extra_photos;
   if (addOn.extra_retention_days > 0 && event.expires_at) {
     const from = Math.max(new Date(event.expires_at).getTime(), now);
     patch.expires_at = new Date(from + addOn.extra_retention_days * DAY).toISOString();

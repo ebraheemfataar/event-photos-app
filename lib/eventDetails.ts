@@ -5,6 +5,7 @@
 
 import type { Event, EventLink } from "@/lib/types";
 import { isThemeId, type ThemeId } from "@/lib/themes";
+import { isEventType, type EventTypeId } from "@/lib/eventTypes";
 
 export const LIMITS = { name: 100, note: 280, links: 4, linkLabel: 40, linkUrl: 500 } as const;
 
@@ -16,6 +17,8 @@ export type DetailsInput = {
   eventDate: string; // "" or YYYY-MM-DD
   note: string;
   links: { label: string; url: string }[];
+  /** "" = not set (albums made before 0016). The create form requires one. */
+  eventType?: string;
 };
 
 export type ValidDetails = {
@@ -24,6 +27,7 @@ export type ValidDetails = {
   event_date: string | null;
   note: string | null;
   links: EventLink[];
+  event_type: EventTypeId | null;
 };
 
 /** Only real https:// web addresses. Blocks javascript:, data:, http:, etc. */
@@ -83,7 +87,11 @@ export function validateDetails(input: DetailsInput): { ok: true; value: ValidDe
     links.push({ label, url });
   }
 
-  return { ok: true, value: { name, theme: input.theme, event_date, note: note || null, links } };
+  const rawType = String(input.eventType ?? "").trim();
+  if (rawType && !isEventType(rawType)) return { ok: false, error: "Pick one of the event types." };
+  const event_type = rawType ? (rawType as EventTypeId) : null;
+
+  return { ok: true, value: { name, theme: input.theme, event_date, note: note || null, links, event_type } };
 }
 
 /** "Sam & Alex's Wedding" → "S&A", "Mia's 30th" → "M3", "Gala" → "G". */

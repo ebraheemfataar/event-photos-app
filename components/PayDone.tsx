@@ -160,7 +160,7 @@ export default function PayDone({ purchaseId, cancelled }: { purchaseId: string;
               </li>
               <li className="flex gap-2.5">
                 <span aria-hidden="true">✦</span>
-                <span>{ev.contributorCap === null ? "No guest limit" : `Up to ${ev.contributorCap.toLocaleString("en-GB")} guests can share`}</span>
+                <span>{ev.photoCap === null ? "No photo limit" : `Room for ${ev.photoCap.toLocaleString("en-GB")} photos`}</span>
               </li>
               <li className="flex gap-2.5">
                 <span aria-hidden="true">✦</span>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { eventTypeLabel } from "@/lib/eventTypes";
 import { requireAdmin } from "@/lib/admin/session";
 import { getAdminEvent, getAdminPhotos, getAdminPurchases, getAudit } from "@/lib/admin/data";
 import { formatRand } from "@/lib/plans";
@@ -25,6 +26,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
 
   const facts: [string, string][] = [
     ["Created", formatDate(event.created_at, true)],
+    ["Type", eventTypeLabel(event.event_type) ?? "Not set"],
     ["Plan", event.legacy_uncapped ? "Early album · no limit" : event.plan.charAt(0).toUpperCase() + event.plan.slice(1)],
     ["Deletes on", event.expires_at ? formatDate(event.expires_at) : "Never"],
     ["Photos", event.photos.toLocaleString("en-GB")],

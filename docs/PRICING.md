@@ -8,29 +8,29 @@ precedence where they differ. Roadmap position: [ROADMAP.md → Monetisation](RO
 
 | # | Question | Decision | Why |
 |---|---|---|---|
-| 1 | What is a "guest" for the cap? | A **contributor**: each phone (browser guest id) that has added at least one photo. The host never counts. Viewing is unlimited. | Guests are anonymous; there's no join step to count. Contributors are countable on the server at upload time, and cheating (clearing the browser) only *raises* the count, so it can't be used to dodge paying. When guest passes land (roadmap Phase 6) a pass replaces the browser id with no rule change. |
+| 1 | What does a plan limit? | **Photos** (changed 2026-11-20, migration 0016; it used to be contributors). Every photo in the album counts, the host's included; guests and viewing are unlimited. When the album is full **nobody** can add more (host included) until it's upgraded; the host is warned at 80%. A deleted photo frees its spot. | Simpler to explain ("up to 500 photos"), nothing to track per guest, and it follows the real cost (storage). The anonymous guest id stays, but only for "delete my own photo" and rate limits. |
 | 2 | Host email | **Not** asked at creation (the landing design is name / date / note). **Required at checkout** for paid plans (receipt + reminders), optional for free events. | Keeps free events friction-free; paid hosts give an email anyway. |
-| 3 | Which features to sell | **Only what exists.** Launch plans differ by contributor cap, retention and badge. Each other feature joins its plan when built. | Don't charge for features that aren't there. |
+| 3 | Which features to sell | **Only what exists.** Launch plans differ by photo limit, retention and badge. Each other feature joins its plan when built. | Don't charge for features that aren't there. |
 | 4 | Payment provider | **PayFast first** (account exists; supports card + Instant EFT), behind a provider interface; Yoco can be added later. | No new SDK needed: PayFast's form + ITN work with `fetch` and Node `crypto`. |
 | 5 | VAT | **Not VAT-registered**: prices are final, no VAT line on receipts or the pricing page. Revisit on registration (check the SARS compulsory threshold with an accountant). | Showing VAT while unregistered isn't allowed. |
 
 Further decisions made while planning:
 
 - **One purchase path.** Every event is created on Free. Picking a paid plan at creation creates the event, then goes straight to checkout for that plan. Upgrading later is the same flow, charging only the difference. Plans are only ever *raised* by a verified payment.
-- **Existing live events** (created before pricing) become Free with `expires_at` = launch + 90 days and **no contributor cap**. They can't be emailed, so their host pages show a "Keep this album" banner.
+- **Existing live events** (created before pricing) become Free with `expires_at` = launch + 90 days and **no photo limit**. They can't be emailed, so their host pages show a "Keep this album" banner.
 - **Badge** = a small "Made with Snap & Share" line in the album footer and on the printed QR table card (the card already ends in "No app · No login · Just scan").
-- **"Forever"** retention on Unlimited stays, but storage per event is still capped by the photo-size limits; revisit if storage cost becomes real.
+- **No unlimited plan, nothing kept forever** (2026-11-20): the top plan is Large (2,000 photos, 2 years), to keep storage bounded. Rough storage: a compressed photo + thumbnail is about 0.5–1 MB, so a full Large album is ~1–2 GB.
 
 ## Plans at launch (per event, once-off, ZAR, stored as integer cents)
 
-| Plan | Price | Contributors | Album kept | At launch | Added when built |
+| Plan | Price | Photos | Album kept | At launch | Added when built |
 |---|---|---|---|---|---|
-| `free` | R0 | 20 | 30 days | badge shown | — |
+| `free` | R0 | 50 | 30 days | badge shown | — |
 | `small` | R149 | 100 | 90 days | badge shown | full-res downloads |
-| `medium` | R399 | 300 | 1 year | **no badge** | video uploads, co-hosts |
-| `unlimited` | R799 | no limit | forever | no badge | ZIP export, live slideshow |
+| `medium` | R399 | 500 | 1 year | **no badge** | video uploads, co-hosts |
+| `large` | R799 | 2,000 | 2 years | no badge | ZIP export, live slideshow |
 
-**Add-ons at launch:** `keep_1yr` (+1 year retention, R49), `guests_50` (+50 contributor slots, R79, stackable).
+**Add-ons at launch:** `keep_1yr` (+1 year retention, R49), `photos_100` (+100 photos, R79, stackable). Numbers live only in the `plans` / `add_ons` tables, so they can be changed with SQL.
 **Later:** `highlight_video` (R99, needs the feature), `qr_cards_20` (R199, physical fulfilment: print partner, shipping address, pending/printed/shipped).
 **Later (need host accounts):** 3-event pack (20% off), returning-host 10% coupon, `pro` subscription (R499/month or R4,990/year, unlimited events at Medium level, own logo).
 
@@ -48,7 +48,7 @@ Further decisions made while planning:
 **Where pricing shows up (agreed):** a pricing section on the landing page (four plan cards + "Compare plans"), a full `/pricing` page (comparison, add-ons, FAQ), the plan chip/sheet in the host album, and a plan picker in the create form (Free pre-selected). ✅ The landing section is live early (plans from the database; Free is "Start free", paid plans say "Coming soon" until checkout exists), and the host sidebar has a "Plan" item. `/pricing` and the create-form picker ship in Stage B with checkout.
 
 ### Stage B — Paid plans v1 · 🔧 built (migration 0015), switched off until launch
-- **Contributor cap enforced on the server** (2c upload step): a new contributor beyond the cap gets "This album is full — ask the host to upgrade"; existing contributors keep uploading.
+- **Plan limit enforced on the server** (2c upload step). Originally a contributor cap; since 0016 a **photo limit**: once photos (plus uploads in flight) reach the cap, every upload is refused, the host included ("This album is full …").
 - **Plan picker at creation** (Free selected) and a **pricing page**, built from the landing page's card and button styles (the design file has no pricing board).
 - **Upgrade prompt** when the host nears or hits a limit; price = new plan − plans already paid for that event (integer cents, never negative).
 - **`event_purchases`** (event_id, plan, add_ons, amount_cents, status `pending → paid | failed | cancelled`, provider, provider_ref, email, created/paid timestamps).

@@ -1,4 +1,6 @@
 import type { ThemeId } from "@/lib/themes";
+import type { CardText } from "@/lib/cardText";
+import type { EventTypeId } from "@/lib/eventTypes";
 
 // host_token is deliberately absent: since 0003_lock_down_host_token.sql anon
 // can't select it. It's only ever returned once, by the create_event RPC.
@@ -17,8 +19,11 @@ export type Event = {
   // Plans (0011_plans.sql). host_email is never selected for pages.
   plan: string;
   expires_at: string | null;
-  extra_contributors: number;
+  extra_photos: number;
   legacy_uncapped: boolean;
+  // 0016: kind of event (null for albums made before) and custom card text.
+  event_type: EventTypeId | null;
+  card_text: CardText | null;
 };
 
 export type EventLink = { label: string; url: string };

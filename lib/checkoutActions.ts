@@ -6,6 +6,7 @@ import { getAddOns, getPlans, isEventHost, isUuid } from "@/lib/data";
 import { payfastConfig } from "@/lib/payments/config";
 import { centsToAmount, sign, type Pairs } from "@/lib/payments/payfast";
 import { priceFor, type PurchaseItem } from "@/lib/purchaseRules";
+import { photoCapOf } from "@/lib/plans";
 import type { Event } from "@/lib/types";
 
 // Checkout (Stage B). The host picks a plan or extra; this creates a
@@ -42,9 +43,9 @@ export async function startCheckout(input: {
   const supabase = createServiceClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, plan, created_at, expires_at, extra_contributors, legacy_uncapped")
+    .select("id, name, plan, created_at, expires_at, extra_photos, legacy_uncapped")
     .eq("id", eventId)
-    .maybeSingle<Pick<Event, "id" | "name" | "plan" | "created_at" | "expires_at" | "extra_contributors" | "legacy_uncapped">>();
+    .maybeSingle<Pick<Event, "id" | "name" | "plan" | "created_at" | "expires_at" | "extra_photos" | "legacy_uncapped">>();
   if (!event) return { ok: false, error: "That album no longer exists." };
 
   const { data: paid } = await supabase.from("event_purchases").select("item").eq("event_id", eventId).eq("kind", "add_on").eq("status", "paid");
@@ -91,7 +92,7 @@ export type PurchaseDetails = {
     id: string;
     name: string;
     planName: string;
-    contributorCap: number | null;
+    photoCap: number | null;
     expiresAt: string | null;
   } | null;
 };
@@ -128,9 +129,9 @@ export async function getPurchaseDetails(purchaseId: string): Promise<PurchaseDe
     getAddOns(),
     supabase
       .from("events")
-      .select("id, name, plan, expires_at, extra_contributors, legacy_uncapped")
+      .select("id, name, plan, expires_at, extra_photos, legacy_uncapped")
       .eq("id", p.event_id)
-      .maybeSingle<Pick<Event, "id" | "name" | "plan" | "expires_at" | "extra_contributors" | "legacy_uncapped">>(),
+      .maybeSingle<Pick<Event, "id" | "name" | "plan" | "expires_at" | "extra_photos" | "legacy_uncapped">>(),
   ]);
   const label =
     p.kind === "plan" ? `${plans.find((x) => x.id === p.item)?.name ?? p.item} plan` : (addOns.find((a) => a.id === p.item)?.name ?? p.item);
@@ -149,7 +150,7 @@ export async function getPurchaseDetails(purchaseId: string): Promise<PurchaseDe
           id: ev.id,
           name: ev.name,
           planName: plan?.name ?? ev.plan,
-          contributorCap: ev.legacy_uncapped || plan?.max_contributors == null ? null : plan.max_contributors + ev.extra_contributors,
+          photoCap: plan ? photoCapOf(ev, plan) : null,
           expiresAt: ev.expires_at,
         }
       : null,

@@ -10,6 +10,8 @@ import { compressImage } from "@/lib/compressImage";
 import { MAX_UPLOAD_BYTES } from "@/lib/compressOptions";
 import { LIMITS, eventImageSrc, monogram, validateDetails, type EventImageKind, type ValidDetails } from "@/lib/eventDetails";
 import { finishEventImageUpload, removeEventImage, saveEventDetails, startEventImageUpload } from "@/lib/eventActions";
+import EventTypePicker from "@/components/EventTypePicker";
+import type { EventTypeId } from "@/lib/eventTypes";
 import type { ThemeId } from "@/lib/themes";
 import Sheet from "@/components/Sheet";
 import CoverCropper from "@/components/CoverCropper";
@@ -44,6 +46,7 @@ export default function EditEventSheet({
   const router = useRouter();
   const [name, setName] = useState(event.name);
   const [eventDate, setEventDate] = useState(event.event_date ?? "");
+  const [eventType, setEventType] = useState<EventTypeId | "">(event.event_type ?? "");
   const [note, setNote] = useState(event.note ?? "");
   const [theme, setTheme] = useState<ThemeId>(event.theme);
   const [links, setLinks] = useState<LinkRow[]>(event.links.length ? event.links : []);
@@ -57,7 +60,7 @@ export default function EditEventSheet({
 
   async function save() {
     setError(null);
-    const input = { name, theme, eventDate, note, links };
+    const input = { name, theme, eventDate, note, links, eventType };
     const checked = validateDetails(input);
     if (!checked.ok) return setError(checked.error);
     if (!hostToken) {
@@ -190,6 +193,11 @@ export default function EditEventSheet({
           <span className="text-sm font-medium">Event name</span>
           <input className={FIELD} value={name} maxLength={LIMITS.name} onChange={(e) => setName(e.target.value)} />
         </label>
+
+        <section aria-label="Type of event" className="flex flex-col gap-[7px]">
+          <span className="text-sm font-medium">Type of event</span>
+          <EventTypePicker value={eventType} onChange={setEventType} />
+        </section>
 
         <label className="flex flex-col gap-[7px]">
           <span className="text-sm font-medium">

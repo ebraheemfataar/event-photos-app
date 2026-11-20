@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { cleanUrl, monogram, validateDetails } from "../lib/eventDetails";
+import { cardTextFor, validateCardText, DEFAULT_CARD_TEXT } from "../lib/cardText";
 import { BASE, localEnv, makeJpeg } from "./helpers";
 
 // Event details (0008): cover, poster, date, note, links, theme.
@@ -30,6 +31,26 @@ test("validateDetails: limits and errors", () => {
   expect(r.ok && r.value.links).toEqual([{ label: "Registry", url: "https://example.com/" }]);
 });
 
+test("event type: known ids only; empty means not set", () => {
+  const typed = validateDetails({ ...valid, eventType: "wedding" });
+  expect(typed.ok && typed.value.event_type).toBe("wedding");
+  const unset = validateDetails(valid);
+  expect(unset.ok && unset.value.event_type).toBeNull();
+  expect(validateDetails({ ...valid, eventType: "rave" }).ok).toBe(false);
+});
+
+test("table card text: trimmed, limited, blanks fall back to the defaults", () => {
+  expect(validateCardText(null)).toEqual({ ok: true, value: null });
+  expect(validateCardText({ eyebrow: " ", message: "", pill: "" })).toEqual({ ok: true, value: null });
+  const r = validateCardText({ eyebrow: "  Welcome  ", message: "Share  your\nfavourite moments", pill: "" });
+  expect(r).toEqual({ ok: true, value: { eyebrow: "Welcome", message: "Share your favourite moments", pill: "" } });
+  expect(validateCardText({ eyebrow: "x".repeat(41) }).ok).toBe(false);
+  expect(validateCardText({ message: "x".repeat(121) }).ok).toBe(false);
+  expect(validateCardText("hello").ok).toBe(false);
+  expect(cardTextFor({ eyebrow: "Welcome", message: "", pill: "" })).toEqual({ ...DEFAULT_CARD_TEXT, eyebrow: "Welcome" });
+  expect(cardTextFor(null)).toEqual(DEFAULT_CARD_TEXT);
+});
+
 test("monogram", () => {
   expect(monogram("Sam & Alex's Wedding")).toBe("S&A");
   expect(monogram("Gala")).toBe("G");
@@ -53,11 +74,15 @@ test.describe("end-to-end", () => {
     await page.setViewportSize({ width: 390, height: 844 });
   }
 
-  test("create form saves theme, date and note", async ({ page }) => {
+  test("create form saves type, theme, date and note; the type is required", async ({ page }) => {
     await phone(page);
     await page.goto(`${BASE}/#create`);
     const name = `Create test ${Date.now()}`;
     await page.getByPlaceholder("Sam & Alex's Wedding").fill(name);
+    await page.getByRole("button", { name: "Create event" }).click();
+    await expect(page.getByText("Pick what kind of event it is.")).toBeVisible();
+    await page.getByRole("radio", { name: /Wedding/ }).click();
+    await expect(page.getByText("Pick what kind of event it is.")).toHaveCount(0);
     await page.locator('input[type="date"]').fill("2026-12-05");
     await page.getByPlaceholder("Snap the speeches and the dance floor.").fill("Dress code: sparkle");
     await page.getByRole("radio", { name: /Champagne/ }).click();
@@ -66,9 +91,76 @@ test.describe("end-to-end", () => {
     await expect(page.locator("[data-theme]").first()).toHaveAttribute("data-theme", "gold");
 
     const id = new URL(page.url()).pathname.split("/").pop();
+    const { url, serviceKey } = localEnv();
+    const { data } = await createClient(url, serviceKey).from("events").select("event_type").eq("id", id!).single();
+    expect(data!.event_type).toBe("wedding");
     await page.goto(`${BASE}/e/${id}`);
     await expect(page.getByText("Dress code: sparkle").first()).toBeVisible();
     await expect(page.getByText(/5 December 2026/).first()).toBeVisible();
+  });
+
+  test("host changes the event type in Edit event", async ({ page }) => {
+    await phone(page);
+    const ev = await newEvent(`Type edit ${Date.now()}`);
+    await page.goto(ev.hostUrl);
+    await page.getByRole("button", { name: "Edit event" }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Edit event" });
+    await sheet.getByRole("radio", { name: /Corporate/ }).click();
+    await sheet.getByRole("button", { name: "Save details" }).click();
+    await expect(page.getByText("Event details saved")).toBeVisible();
+    const { url, serviceKey } = localEnv();
+    const { data } = await createClient(url, serviceKey).from("events").select("event_type").eq("id", ev.id).single();
+    expect(data!.event_type).toBe("corporate");
+  });
+
+  test("table card: preview, custom text saved with the album and printed; guests can't edit it", async ({ page }) => {
+    await phone(page);
+    const ev = await newEvent(`Card text ${Date.now()}`);
+    await page.goto(ev.hostUrl);
+    await page.locator("#invite").getByRole("button", { name: /Print table card/ }).click();
+    const sheet = page.getByRole("dialog", { name: "Table card" });
+    const preview = sheet.getByRole("img", { name: "Preview of the printed card" });
+    await expect(preview).toContainText("Every angle of the party");
+
+    await sheet.getByRole("radio", { name: "Custom text" }).click();
+    await sheet.getByLabel("Line above the name").fill("Welcome to our wedding");
+    await sheet.getByLabel("Message").fill("Share your favourite moments with us!");
+    await expect(preview).toContainText("Share your favourite moments with us!");
+    await expect(preview).toContainText("No app · No login · Just scan");
+    await sheet.getByLabel("Line above the name").fill("x".repeat(41));
+    await sheet.getByRole("button", { name: "Save" }).click();
+    await expect(sheet.getByRole("alert")).toContainText("under 40 characters");
+    await sheet.getByLabel("Line above the name").fill("Welcome to our wedding");
+    await sheet.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Card text saved")).toBeVisible();
+
+    const { url, serviceKey } = localEnv();
+    const db = createClient(url, serviceKey);
+    const { data } = await db.from("events").select("card_text").eq("id", ev.id).single();
+    expect(data!.card_text).toEqual({ eyebrow: "Welcome to our wedding", message: "Share your favourite moments with us!", pill: "No app · No login · Just scan" });
+
+    // The small card on the page uses it too, and it survives a reload.
+    await page.reload();
+    await expect(page.locator("#invite").getByText("Welcome to our wedding")).toBeVisible();
+
+    // Print: the tent is built with the custom text (window.print stubbed).
+    await page.evaluate(() => {
+      window.print = () => {};
+    });
+    await page.locator("#invite").getByRole("button", { name: /Print table card/ }).click();
+    await page.getByRole("dialog", { name: "Table card" }).getByRole("button", { name: "Print" }).click();
+    await expect(page.locator(".print-root .tent-sub").first()).toHaveText("Share your favourite moments with us!");
+
+    // Back to the defaults.
+    await page.locator("#invite").getByRole("button", { name: /Print table card/ }).click();
+    const again = page.getByRole("dialog", { name: "Table card" });
+    await again.getByRole("radio", { name: "Default text" }).click();
+    await again.getByRole("button", { name: "Save" }).click();
+    await expect.poll(async () => (await db.from("events").select("card_text").eq("id", ev.id).single()).data!.card_text).toBeNull();
+
+    // Guests print straight away, with no editor.
+    await page.goto(ev.guestUrl);
+    await expect(page.getByRole("dialog", { name: "Table card" })).toHaveCount(0);
   });
 
   test("host edits details; guests see them; bad links are refused", async ({ browser }) => {

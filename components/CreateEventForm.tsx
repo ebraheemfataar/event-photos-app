@@ -7,6 +7,8 @@ import { LIMITS, validateDetails } from "@/lib/eventDetails";
 import { DEFAULT_THEME, THEMES, type ThemeId } from "@/lib/themes";
 import { ArrowRightIcon } from "@/components/icons";
 import Spinner from "@/components/Spinner";
+import EventTypePicker from "@/components/EventTypePicker";
+import type { EventTypeId } from "@/lib/eventTypes";
 import { formatRand, type Plan } from "@/lib/plans";
 
 /** Fired by the pricing cards' "Choose" buttons (PlanChooseButton). */
@@ -31,6 +33,8 @@ export default function CreateEventForm({ plans = [], paymentsEnabled = false }:
     return () => window.removeEventListener(CHOOSE_PLAN_EVENT, onChoose);
   }, [plans]);
   const [name, setName] = useState("");
+  const [eventType, setEventType] = useState<EventTypeId | "">("");
+  const [typeMissing, setTypeMissing] = useState(false);
   const [eventDate, setEventDate] = useState("");
   const [note, setNote] = useState("");
   const [theme, setTheme] = useState<ThemeId>(DEFAULT_THEME);
@@ -39,8 +43,12 @@ export default function CreateEventForm({ plans = [], paymentsEnabled = false }:
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const checked = validateDetails({ name, theme, eventDate, note, links: [] });
+    const checked = validateDetails({ name, theme, eventDate, note, links: [], eventType });
     if (!checked.ok) return setError(checked.error);
+    if (!checked.value.event_type) {
+      setTypeMissing(true);
+      return setError("Pick what kind of event it is.");
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -55,6 +63,7 @@ export default function CreateEventForm({ plans = [], paymentsEnabled = false }:
         p_theme: checked.value.theme,
         p_event_date: checked.value.event_date,
         p_note: checked.value.note,
+        p_event_type: checked.value.event_type,
       })
       .single<{ id: string; host_token: string }>();
 
@@ -82,6 +91,19 @@ export default function CreateEventForm({ plans = [], paymentsEnabled = false }:
           className={FIELD}
         />
       </label>
+
+      <fieldset className="flex flex-col gap-[7px]">
+        <legend className="mb-[7px] text-sm font-medium">What&apos;s the occasion?</legend>
+        <EventTypePicker
+          value={eventType}
+          invalid={typeMissing}
+          onChange={(id) => {
+            setEventType(id);
+            setTypeMissing(false);
+            if (error === "Pick what kind of event it is.") setError(null);
+          }}
+        />
+      </fieldset>
 
       <label className="flex flex-col gap-[7px]">
         <span className="text-sm font-medium">
@@ -155,7 +177,7 @@ export default function CreateEventForm({ plans = [], paymentsEnabled = false }:
                 >
                   <span className="text-sm font-semibold">{p.name}</span>
                   <span className={`text-xs ${on ? "opacity-80" : "text-ink-3"}`}>
-                    {p.price_cents ? formatRand(p.price_cents) : "Free"} · {p.max_contributors === null ? "no guest limit" : `${p.max_contributors} guests`}
+                    {p.price_cents ? formatRand(p.price_cents) : "Free"} · {p.max_photos === null ? "no photo limit" : `${p.max_photos.toLocaleString("en-GB")} photos`}
                   </span>
                 </button>
               );

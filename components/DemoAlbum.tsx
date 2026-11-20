@@ -60,10 +60,7 @@ export default function DemoAlbum({
         guestUrl={guestUrl}
         onPhotoRemoved={(id) => setPhotos((prev) => prev.filter((p) => p.id !== id))}
         onDemoEdit={applyDetails}
-        planStatus={planStatus(baseEvent, DEMO_PLANS[1], {
-          photos: photos.length,
-          contributors: new Set(photos.map((p) => p.guest_name)).size,
-        })}
+        planStatus={planStatus(baseEvent, DEMO_PLANS[1], { photos: photos.length })}
         plans={DEMO_PLANS}
         showBadge={DEMO_PLANS.find((p) => p.id === baseEvent.plan)?.shows_badge ?? true}
         addOns={DEMO_ADD_ONS}

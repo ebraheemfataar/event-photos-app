@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { AddOn, Plan, PlanStatus } from "@/lib/plans";
-import { formatRand, planMood, upgradePriceCents } from "@/lib/plans";
+import { formatRand, photosNearlyFull, planMood, upgradePriceCents } from "@/lib/plans";
 import Sheet from "@/components/Sheet";
 import Spinner from "@/components/Spinner";
 import { startCheckout } from "@/lib/checkoutActions";
@@ -21,11 +21,12 @@ const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const n = (v: number) => v.toLocaleString("en-GB");
 
-/** One-line summary for the profile chip. */
+const photoUsage = (s: PlanStatus) => (s.photoCap === null ? `${n(s.photos)} photos` : `${n(s.photos)}/${n(s.photoCap)} photos`);
+
+/** One-line summary for the plan card. */
 export function planSummary(s: PlanStatus): string {
   if (s.legacy) return "Early album · no limit";
-  if (s.contributorCap === null && s.expiresAt === null) return `${s.planName} · kept forever`;
-  const guests = s.contributorCap === null ? `${s.contributors} guests` : `${s.contributors}/${s.contributorCap} guests`;
+  const guests = photoUsage(s);
   const time =
     s.expiresAt === null
       ? "kept forever"
@@ -37,20 +38,20 @@ export function planSummary(s: PlanStatus): string {
   return [s.planName, guests, time].join(" · ");
 }
 
-/** Short usage line for the host sidebar: "4/20 guests · 26 days left". */
+/** Short usage line for the host sidebar: "32/50 photos · 26 days left". */
 export function planUsageLine(s: PlanStatus): string {
   if (s.legacy) return "Early album · no limit";
-  const guests = s.contributorCap === null ? `${s.contributors} guests` : `${s.contributors}/${s.contributorCap} guests`;
+  const guests = photoUsage(s);
   const time = s.expiresAt === null ? "kept forever" : s.daysLeft === 1 ? "1 day left" : `${s.daysLeft} days left`;
   return `${guests} · ${time}`;
 }
 
-/** Host-only plan card under the album profile: plan, usage, a guests bar
+/** Host-only plan card under the album profile: plan, usage, a photos bar
  * and a clear Upgrade button. Opens the plan sheet. */
 export function PlanCard({ status, onOpen, isTopPlan }: { status: PlanStatus; onOpen: () => void; isTopPlan: boolean }) {
   const mood = planMood(status);
-  const cap = status.contributorCap;
-  const pct = cap ? Math.min(100, (status.contributors / cap) * 100) : 0;
+  const cap = status.photoCap;
+  const pct = cap ? Math.min(100, (status.photos / cap) * 100) : 0;
   const frame =
     mood === "full" ? "border-danger/40 bg-danger-bg" : mood === "near" ? "border-warn-line bg-warn-bg" : "border-line bg-surface";
   const bar = mood === "full" ? "bg-danger" : mood === "near" ? "bg-warn-ink" : "bg-accent";
@@ -118,7 +119,6 @@ export default function PlanSheet({
   const [payError, setPayError] = useState<string | null>(null);
   const mood = planMood(status);
   const rank = (id: string) => plans.findIndex((p) => p.id === id);
-  const isUnlimited = !status.legacy && status.contributorCap === null && status.expiresAt === null;
   const options = status.legacy ? plans.filter((p) => p.price_cents > 0) : plans.filter((p) => rank(p.id) >= rank(status.planId));
   const next = options.find((p) => p.id !== status.planId && (!status.legacy || p.price_cents > 0));
   const target = plans.find((p) => p.id === selected) ?? null;
@@ -173,7 +173,7 @@ export default function PlanSheet({
   }
 
   const footer =
-    (choice || mood !== "ok") && !isUnlimited ? (
+    choice || mood !== "ok" ? (
           <div className="flex flex-col gap-2 text-center">
             {choice ? (
               UPGRADES_LIVE ? (
@@ -237,24 +237,30 @@ export default function PlanSheet({
   return (
     <Sheet open={open} onClose={close} title="Your plan" footer={footer}>
       <div className="flex flex-col gap-[22px]">
-        {isUnlimited ? <UnlimitedCard status={status} /> : status.legacy ? <LegacyCard status={status} /> : <UsageCard status={status} />}
+        {status.legacy ? <LegacyCard status={status} /> : <UsageCard status={status} />}
 
-        {mood === "near" && status.contributorCap !== null && !status.legacy && (
+        {mood === "near" && !status.legacy && (
           <Nudge tone="warn" title={nearTitle(status)}>
-            {next
-              ? `Once ${status.contributorCap} guests have shared, new guests can look but can’t add photos. ${next.name} makes room for ${next.max_contributors === null ? "everyone" : next.max_contributors} and keeps everything ${next.retention_days === null ? "forever" : `for ${retention(next.retention_days)}`}.`
-              : "Upgrade to keep it longer."}
+            {photosNearlyFull(status)
+              ? `When all ${n(status.photoCap ?? 0)} photos are used, nobody can add more, you included. ${
+                  next
+                    ? `${next.name} holds ${next.max_photos === null ? "as many as you like" : n(next.max_photos)} and keeps everything ${next.retention_days === null ? "forever" : `for ${retention(next.retention_days)}`}.`
+                    : "Add extra photos below so everyone can keep sharing."
+                }`
+              : next
+                ? `${next.name} keeps everything ${next.retention_days === null ? "forever" : `for ${retention(next.retention_days)}`}.`
+                : "Add a year below to keep it longer."}
           </Nudge>
         )}
         {mood === "full" && (
           <Nudge tone="full" title="Your album is full">
             {UPGRADES_LIVE
-              ? "New guests can still see every photo, but can’t add their own. Upgrade and they can start sharing straight away."
-              : "New guests can still see every photo. When plans go live, you’ll need to upgrade for new guests to add their own."}
+              ? "Nobody can add photos right now, you included. Everyone can still see every photo. Upgrade or add extra photos and sharing starts again straight away."
+              : "Nobody can add photos right now, you included. Everyone can still see every photo. When plans go live, you’ll be able to upgrade here."}
           </Nudge>
         )}
 
-        {!isUnlimited && options.length > 0 && (
+        {options.length > 0 && (
           <section className="flex flex-col gap-2.5">
             <div className="flex items-baseline justify-between px-1">
               <span className="mono text-[11px] text-ink-3">{status.legacy ? "Keep it longer" : "Plans"}</span>
@@ -262,7 +268,7 @@ export default function PlanSheet({
             </div>
             <div className="flex flex-col gap-2" role="radiogroup" aria-label="Plans">
               {options.map((p) => {
-                const sub = `${p.max_contributors === null ? "Unlimited guests" : `Up to ${p.max_contributors} guests`} · ${
+                const sub = `${p.max_photos === null ? "No photo limit" : `Up to ${n(p.max_photos)} photos`} · ${
                   p.retention_days === null ? "Kept forever" : `Kept ${retention(p.retention_days)}`
                 }${p.shows_badge ? "" : " · no badge"}`;
                 if (p.id === status.planId && !status.legacy) {
@@ -328,7 +334,7 @@ export default function PlanSheet({
           </section>
         )}
 
-        {!isUnlimited && addOns.length > 0 && (
+        {addOns.length > 0 && (
           <section className="flex flex-col gap-2.5">
             <div className="px-1">
               <span className="mono text-[11px] text-ink-3">Extras</span>
@@ -374,11 +380,9 @@ export default function PlanSheet({
           </section>
         )}
 
-        {!isUnlimited && (
-          <p className="px-1 text-[12.5px] leading-normal text-ink-3">
-            Guests are phones that have added at least one photo. You don’t count, and anyone can view.
-          </p>
-        )}
+        <p className="px-1 text-[12.5px] leading-normal text-ink-3">
+          Every photo counts, yours too. Once the album is full, nobody can add more until you upgrade. Viewing is always unlimited.
+        </p>
 
       </div>
     </Sheet>
@@ -386,11 +390,11 @@ export default function PlanSheet({
 }
 
 function UsageCard({ status: s }: { status: PlanStatus }) {
-  const cap = s.contributorCap ?? 0;
+  const cap = s.photoCap ?? 0;
   const mood = planMood(s);
-  const pct = cap ? Math.min(100, (s.contributors / cap) * 100) : 0;
-  const left = Math.max(0, cap - s.contributors);
-  const barTone = mood === "full" ? "bg-danger" : mood === "near" && left <= Math.max(2, Math.ceil(cap * 0.1)) ? "bg-warn-ink" : "bg-accent";
+  const pct = cap ? Math.min(100, (s.photos / cap) * 100) : 0;
+  const left = Math.max(0, cap - s.photos);
+  const barTone = mood === "full" ? "bg-danger" : photosNearlyFull(s) ? "bg-warn-ink" : "bg-accent";
   return (
     <section className="flex flex-col gap-3.5 rounded-[24px] bg-surface p-5">
       <div className="flex items-center justify-between gap-2">
@@ -401,27 +405,28 @@ function UsageCard({ status: s }: { status: PlanStatus }) {
         </span>
         {s.priceCents > 0 && <span className="text-[13px] text-ink-3">Paid {formatRand(s.priceCents)}</span>}
       </div>
-      {s.contributorCap !== null ? (
+      {s.photoCap !== null ? (
         <>
           <div className="flex items-baseline gap-2 tabular-nums">
-            <b className="text-5xl font-semibold leading-none tracking-[-0.03em]">{s.contributors}</b>
-            <span className="text-[17px] text-ink-2">of {s.contributorCap} guests</span>
+            <b className="text-5xl font-semibold leading-none tracking-[-0.03em]">{n(s.photos)}</b>
+            <span className="text-[17px] text-ink-2">of {n(s.photoCap)} photos</span>
           </div>
-          <div role="img" aria-label={`${s.contributors} of ${s.contributorCap} guests`} className="h-2 overflow-hidden rounded-full bg-surface-2">
+          <div role="img" aria-label={`${s.photos} of ${s.photoCap} photos`} className="h-2 overflow-hidden rounded-full bg-surface-2">
             <i className={`block h-full rounded-full ${barTone}`} style={{ width: `${Math.max(pct, 2)}%` }} />
-          </div>
-          <div className={`-mt-1.5 text-sm ${mood === "full" ? "font-medium text-danger" : "text-ink-2"}`}>
-            {mood === "full" ? "No spots left" : `${left} ${left === 1 ? "spot" : "spots"} left`}
           </div>
         </>
       ) : (
         <div className="flex items-baseline gap-2 tabular-nums">
-          <b className="text-5xl font-semibold leading-none tracking-[-0.03em]">{s.contributors}</b>
-          <span className="text-[17px] text-ink-2">guests · no limit</span>
+          <b className="text-5xl font-semibold leading-none tracking-[-0.03em]">{n(s.photos)}</b>
+          <span className="text-[17px] text-ink-2">photos · no limit</span>
         </div>
       )}
       <div className="grid grid-cols-2 gap-2.5">
-        <Stat value={n(s.photos)} label="photos" />
+        {s.photoCap !== null ? (
+          <Stat value={mood === "full" ? "Full" : n(left)} label={mood === "full" ? "No photos left" : left === 1 ? "photo left" : "photos left"} warn={mood !== "ok" && photosNearlyFull(s)} />
+        ) : (
+          <Stat value="No limit" label="photos" />
+        )}
         {s.expiresAt === null ? (
           <Stat value="Forever" label="Kept" />
         ) : s.priceCents > 0 ? (
@@ -438,45 +443,22 @@ function UsageCard({ status: s }: { status: PlanStatus }) {
   );
 }
 
-function UnlimitedCard({ status: s }: { status: PlanStatus }) {
-  return (
-    <section className="relative flex flex-col items-center overflow-hidden rounded-[24px] bg-surface px-5 pb-[22px] pt-[30px] text-center">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-[120px] left-1/2 h-[260px] w-[260px] -translate-x-1/2 rounded-full"
-        style={{ background: "radial-gradient(closest-side, color-mix(in srgb, var(--accent) 28%, transparent), transparent)" }}
-      />
-      <div aria-hidden="true" className="relative text-[76px] font-light leading-[0.9] text-accent">
-        ∞
-      </div>
-      <h3 className="relative mt-1.5 text-[26px] font-semibold tracking-[-0.01em]" style={HEADING}>
-        {s.planName}
-      </h3>
-      <p className="relative mt-0.5 text-sm text-ink-2">No limits. Kept forever.</p>
-      <div className="relative mt-4 grid w-full grid-cols-2 gap-2.5 text-left">
-        <Stat value={n(s.contributors)} label="guests have shared" />
-        <Stat value={n(s.photos)} label="photos" />
-      </div>
-    </section>
-  );
-}
-
 function LegacyCard({ status: s }: { status: PlanStatus }) {
   return (
     <>
       <section className="flex flex-col gap-3.5 rounded-[24px] bg-surface p-5">
         <span className="mono inline-flex h-[26px] items-center self-start rounded-full bg-surface-2 px-2.5 text-[11px] text-ink">Early album</span>
         <div className="flex items-baseline gap-2 tabular-nums">
-          <b className="text-5xl font-semibold leading-none tracking-[-0.03em]">{s.contributors}</b>
-          <span className="text-[17px] text-ink-2">guests · no limit</span>
+          <b className="text-5xl font-semibold leading-none tracking-[-0.03em]">{n(s.photos)}</b>
+          <span className="text-[17px] text-ink-2">photos · no limit</span>
         </div>
         <div className="grid grid-cols-2 gap-2.5">
-          <Stat value={n(s.photos)} label="photos" />
+          <Stat value="No limit" label="photos" />
           <Stat value="No countdown" label="Kept at least 90 days after plans launch" />
         </div>
       </section>
       <Nudge tone="info" title="Made before plans existed">
-        Your album has no guest limit. Nothing changes until plans launch, and you’ll see it here first.
+        Your album has no photo limit. Nothing changes until plans launch, and you’ll see it here first.
       </Nudge>
     </>
   );
@@ -504,10 +486,10 @@ function Nudge({ tone, title, children }: { tone: "warn" | "full" | "info"; titl
   );
 }
 
-/** "Only 2 spots left", or "4 days left" when time is what's running out. */
+/** "Only 8 photos left", or "4 days left" when time is what's running out. */
 function nearTitle(s: PlanStatus) {
-  const left = s.contributorCap === null ? Infinity : s.contributorCap - s.contributors;
-  if (left <= Math.max(2, Math.ceil((s.contributorCap ?? 0) * 0.1))) return `Only ${left} ${left === 1 ? "spot" : "spots"} left`;
+  const left = Math.max(0, (s.photoCap ?? 0) - s.photos);
+  if (photosNearlyFull(s)) return `Only ${n(left)} ${left === 1 ? "photo" : "photos"} left`;
   return s.daysLeft === 1 ? "1 day left" : `${s.daysLeft} days left`;
 }
 

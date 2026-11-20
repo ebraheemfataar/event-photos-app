@@ -36,7 +36,7 @@ export default function PricingSection({
         Pay once per event. <span className="text-mute">Or nothing at all.</span>
       </h2>
       <p className="mt-3 mb-[18px] max-w-xl px-1.5 text-[15px] leading-normal text-ink-2 md:mb-7 md:text-base">
-        Every album starts free. Bigger celebrations get more guests and keep their photos for longer. No subscription.
+        Every album starts free. Bigger celebrations get room for more photos and keep them for longer. No subscription.
       </p>
 
       <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
@@ -44,10 +44,10 @@ export default function PricingSection({
           const isFree = p.price_cents === 0;
           const isFeatured = p.id === featured;
           const features = [
-            p.max_contributors === null ? "Unlimited guests sharing" : `Up to ${p.max_contributors.toLocaleString("en-GB")} guests sharing`,
+            p.max_photos === null ? "No photo limit" : `Up to ${p.max_photos.toLocaleString("en-GB")} photos`,
             retention(p.retention_days),
             p.shows_badge ? "Small Snap & Share badge" : "No Snap & Share badge",
-            "Unlimited viewing, live album, QR card",
+            "Unlimited guests and viewing, live album, QR card",
           ];
           return (
             <li
@@ -105,7 +105,7 @@ export default function PricingSection({
             ))}
           </span>
         )}
-        <span>Guests = phones that add a photo. You never count. Prices in rand.</span>
+        <span>Every photo counts, the host&apos;s too. Invite as many guests as you like. Prices in rand.</span>
       </div>
     </section>
   );

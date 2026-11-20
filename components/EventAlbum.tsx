@@ -498,7 +498,7 @@ export default function EventAlbum({
               <PlanCard
                 status={planStatus}
                 onOpen={() => setPlanOpen(true)}
-                isTopPlan={!planStatus.legacy && planStatus.contributorCap === null && planStatus.expiresAt === null}
+                isTopPlan={!planStatus.legacy && plans.length > 0 && plans[plans.length - 1].id === planStatus.planId}
               />
             </div>
           )}
@@ -529,7 +529,17 @@ export default function EventAlbum({
               aria-label="Invite guests"
               className="mx-3.5 mt-4 scroll-mt-6 rounded-[28px] border border-line bg-surface p-4 lg:mx-8 lg:mt-8 lg:p-6"
             >
-              <QRCodeCard eventName={eventName} guestUrl={guestUrlProp ?? ""} onNotify={notify} split badge={showBadge} />
+              <QRCodeCard
+                eventName={eventName}
+                guestUrl={guestUrlProp ?? ""}
+                onNotify={notify}
+                split
+                badge={showBadge}
+                eventId={eventId}
+                hostToken={hostToken}
+                canCustomize
+                cardText={event.card_text}
+              />
             </section>
           )}
 
@@ -682,7 +692,18 @@ export default function EventAlbum({
       )}
 
       <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Invite guests">
-        {qrOpen && <QRCodeCard eventName={eventName} guestUrl={resolveGuestUrl()} onNotify={notify} badge={showBadge} />}
+        {qrOpen && (
+          <QRCodeCard
+            eventName={eventName}
+            guestUrl={resolveGuestUrl()}
+            onNotify={notify}
+            badge={showBadge}
+            eventId={eventId}
+            hostToken={isHost ? hostToken : undefined}
+            canCustomize={isHost}
+            cardText={event.card_text}
+          />
+        )}
       </Sheet>
 
       {isHost && planStatus && (

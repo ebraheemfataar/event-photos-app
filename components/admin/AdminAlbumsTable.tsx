@@ -44,7 +44,7 @@ const PLAN_LABELS: Record<AdminPlanFilter, string> = {
   free: "Free",
   small: "Small",
   medium: "Medium",
-  unlimited: "Unlimited",
+  large: "Large",
   early: "Early (before plans)",
 };
 

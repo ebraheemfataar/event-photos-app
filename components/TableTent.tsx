@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { QRCodeSVG } from "qrcode.react";
+import { DEFAULT_CARD_TEXT, type CardText } from "@/lib/cardText";
 
 /** Print-only A4 "table tent": the page is folded in half along the dashed
  * line and stood up, so the top half is printed upside down and both faces
@@ -13,23 +14,26 @@ export default function TableTent({
   guestUrl,
   theme,
   badge = false,
+  text = DEFAULT_CARD_TEXT,
 }: {
   eventName: string;
   guestUrl: string;
   theme: string;
   badge?: boolean;
+  /** The three lines a host can change (lib/cardText.ts). */
+  text?: CardText;
 }) {
   return createPortal(
     <div className="print-root" data-theme={theme} aria-hidden="true">
       <div className="tent-page">
         <div className="tent-half tent-flip">
-          <Face eventName={eventName} guestUrl={guestUrl} badge={badge} />
+          <TentFace eventName={eventName} guestUrl={guestUrl} badge={badge} text={text} />
         </div>
         <div className="tent-fold">
           <span>Fold here</span>
         </div>
         <div className="tent-half">
-          <Face eventName={eventName} guestUrl={guestUrl} badge={badge} />
+          <TentFace eventName={eventName} guestUrl={guestUrl} badge={badge} text={text} />
         </div>
       </div>
     </div>,
@@ -37,7 +41,8 @@ export default function TableTent({
   );
 }
 
-function Face({ eventName, guestUrl, badge }: { eventName: string; guestUrl: string; badge: boolean }) {
+/** One face of the tent (also the on-screen preview in TableCardEditor). */
+export function TentFace({ eventName, guestUrl, badge, text }: { eventName: string; guestUrl: string; badge: boolean; text: CardText }) {
   const titleSize = eventName.length > 34 ? "22pt" : eventName.length > 18 ? "28pt" : "34pt";
   return (
     <div className="tent-face">
@@ -49,11 +54,11 @@ function Face({ eventName, guestUrl, badge }: { eventName: string; guestUrl: str
         <QRCodeSVG value={guestUrl} size={512} marginSize={0} fgColor="currentColor" bgColor="transparent" style={{ width: "100%", height: "100%" }} />
       </div>
       <div className="tent-text">
-        <div className="mono tent-eyebrow">Scan to add your photos</div>
+        <div className="mono tent-eyebrow">{text.eyebrow}</div>
         <div className="hd tent-title" style={{ fontSize: titleSize }}>
           {eventName}
         </div>
-        <p className="tent-sub">Every angle of the party, in one shared album.</p>
+        <p className="tent-sub">{text.message}</p>
         <ol className="tent-steps">
           <li>
             <b>1</b>Open your phone camera
@@ -65,7 +70,7 @@ function Face({ eventName, guestUrl, badge }: { eventName: string; guestUrl: str
             <b>3</b>Add your photos
           </li>
         </ol>
-        <div className="tent-pill">No app · No login · Just scan</div>
+        <div className="tent-pill">{text.pill}</div>
         {badge && <div className="tent-badge">Made with Snap & Share</div>}
       </div>
     </div>

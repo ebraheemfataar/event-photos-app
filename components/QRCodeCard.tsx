@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 import TableTent from "@/components/TableTent";
+import TableCardEditor from "@/components/TableCardEditor";
+import { cardTextFor, type CardText } from "@/lib/cardText";
 import { ArrowRightIcon, DownloadIcon, LinkIcon, PrinterIcon, ShareIcon } from "@/components/icons";
 
 /** The printable "table card". Its colours come from the event theme's
@@ -12,17 +14,20 @@ export function TableCard({
   guestUrl,
   size = 196,
   badge = false,
+  text = cardTextFor(null),
 }: {
   eventName: string;
   guestUrl: string;
   size?: number;
   /** "Made with Snap & Share" (plans that show the badge). */
   badge?: boolean;
+  /** Custom wording (lib/cardText.ts); the message only appears when printed. */
+  text?: CardText;
 }) {
   return (
     <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] border border-line bg-[var(--card-bg)] text-center text-[var(--card-ink)] shadow-2">
       <div className="px-5 pb-4 pt-5">
-        <div className="mono text-[10px] text-[var(--card-muted)]">Scan to add your photos</div>
+        <div className="mono text-[10px] text-[var(--card-muted)]">{text.eyebrow}</div>
         <div className="hd mt-1.5 text-[26px] leading-[1.05] break-words">{eventName}</div>
         <div className="mx-auto mt-3 flex items-center justify-center" style={{ width: size, height: size }}>
           {guestUrl && (
@@ -39,7 +44,7 @@ export function TableCard({
         {badge && <div className="mt-3 text-[10px] text-[var(--card-muted)]">Made with Snap & Share</div>}
       </div>
       <div className="flex h-10 items-center justify-center bg-[var(--card-strip)] text-[13px] font-semibold text-[var(--card-strip-ink)]">
-        No app · No login · Just scan
+        {text.pill}
       </div>
     </div>
   );
@@ -52,10 +57,21 @@ export default function QRCodeCard({
   onNotify,
   split = false,
   badge = false,
+  eventId = "",
+  hostToken,
+  canCustomize = false,
+  cardText = null,
 }: {
   eventName: string;
   guestUrl: string;
   onNotify: (message: string) => void;
+  eventId?: string;
+  /** Verified host token: custom card text is saved with the album. */
+  hostToken?: string;
+  /** Host view (incl. the demo): "Print table card" opens the editor. */
+  canCustomize?: boolean;
+  /** The album's saved card text (events.card_text), null = defaults. */
+  cardText?: CardText | null;
   /** Show "Made with Snap & Share" on the card, PNG and printed tent. */
   badge?: boolean;
   /** Side-by-side card + actions from md up (host page). */
@@ -64,7 +80,10 @@ export default function QRCodeCard({
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   // Each click bumps `n`; the tent is mounted (print-only) and printed once
   // its fonts are ready. `theme` is read from the album at click time.
-  const [tent, setTent] = useState<{ n: number; theme: string } | null>(null);
+  const [tent, setTent] = useState<{ n: number; theme: string; text: CardText } | null>(null);
+  const [savedText, setSavedText] = useState<CardText | null>(cardText);
+  const [editor, setEditor] = useState<{ theme: string } | null>(null);
+  const text = cardTextFor(savedText);
 
   useEffect(() => {
     if (!tent) return;
@@ -81,9 +100,16 @@ export default function QRCodeCard({
     };
   }, [tent]);
 
+  const albumTheme = () => canvasWrapRef.current?.closest("[data-theme]")?.getAttribute("data-theme") ?? "classic";
+
+  function printTent(withText: CardText) {
+    const theme = albumTheme();
+    setTent((t) => ({ n: (t?.n ?? 0) + 1, theme, text: withText }));
+  }
+
   function handlePrint() {
-    const theme = canvasWrapRef.current?.closest("[data-theme]")?.getAttribute("data-theme") ?? "classic";
-    setTent((t) => ({ n: (t?.n ?? 0) + 1, theme }));
+    if (canCustomize) setEditor({ theme: albumTheme() });
+    else printTent(text);
   }
 
   async function handleCopy() {
@@ -134,7 +160,7 @@ export default function QRCodeCard({
     ctx.fillStyle = v("--card-muted", "#55555B");
     ctx.textAlign = "center";
     ctx.font = `500 28px ${bodyFamily}`;
-    ctx.fillText("SCAN TO ADD YOUR PHOTOS", W / 2, 110);
+    ctx.fillText(text.eyebrow.toUpperCase(), W / 2, 110);
 
     ctx.fillStyle = v("--card-ink", "#0E0E10");
     ctx.font = `${titleWeight} 72px ${titleFamily}`;
@@ -165,7 +191,7 @@ export default function QRCodeCard({
     ctx.fillRect(0, H - 120, W, 120);
     ctx.fillStyle = v("--card-strip-ink", "#0E0E10");
     ctx.font = `600 36px ${bodyFamily}`;
-    ctx.fillText("No app · No login · Just scan", W / 2, H - 48);
+    ctx.fillText(text.pill, W / 2, H - 48);
 
     const a = document.createElement("a");
     a.href = canvas.toDataURL("image/png");
@@ -176,7 +202,7 @@ export default function QRCodeCard({
   return (
     <div className={`flex flex-col gap-4 ${split ? "md:flex-row md:items-center md:gap-8" : ""}`}>
       <div className={split ? "md:w-[300px] md:shrink-0" : ""}>
-        <TableCard eventName={eventName} guestUrl={guestUrl} badge={badge} />
+        <TableCard eventName={eventName} guestUrl={guestUrl} badge={badge} text={text} />
       </div>
       <div ref={canvasWrapRef} className="hidden" aria-hidden="true">
         {guestUrl && <QRCodeCanvas value={guestUrl} size={600} marginSize={0} bgColor="transparent" />}
@@ -234,11 +260,31 @@ export default function QRCodeCard({
           <PrinterIcon size={20} className="shrink-0" />
           <span className="min-w-0 flex-1">
             <span className="block text-[15px] font-semibold">Print table card</span>
-            <span className="block text-xs text-ink-3">A4 · fold in half and stand it on each table</span>
+            <span className="block text-xs text-ink-3">
+              {canCustomize ? "A4 · preview it and add your own message" : "A4 · fold in half and stand it on each table"}
+            </span>
           </span>
         </button>
       </div>
-      {tent && guestUrl && <TableTent key={tent.n} eventName={eventName} guestUrl={guestUrl} theme={tent.theme} badge={badge} />}
+      {tent && guestUrl && <TableTent key={tent.n} eventName={eventName} guestUrl={guestUrl} theme={tent.theme} badge={badge} text={tent.text} />}
+      {editor && (
+        <TableCardEditor
+          open
+          onClose={() => setEditor(null)}
+          eventId={eventId}
+          hostToken={hostToken}
+          eventName={eventName}
+          guestUrl={guestUrl}
+          theme={editor.theme}
+          badge={badge}
+          saved={savedText}
+          onSaved={(t) => {
+            setSavedText(t);
+            onNotify(hostToken ? "Card text saved" : "Saved on this page only (demo)");
+          }}
+          onPrint={printTent}
+        />
+      )}
     </div>
   );
 }

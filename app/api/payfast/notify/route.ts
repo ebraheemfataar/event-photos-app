@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   // Apply it to the album.
   const { data: event } = await supabase
     .from("events")
-    .select("id, name, plan, created_at, expires_at, extra_contributors, legacy_uncapped")
+    .select("id, name, plan, created_at, expires_at, extra_photos, legacy_uncapped")
     .eq("id", purchase.event_id)
     .maybeSingle();
   if (event) {
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       const addOn = item.kind === "add_on" ? addOns.find((a) => a.id === item.id) : undefined;
       const label = plan ? `${plan.name} plan` : (addOn?.name ?? item.id);
       const whatsNew = plan
-        ? [plan.max_contributors === null ? "No guest limit" : `Up to ${plan.max_contributors} guests`, plan.retention_days === null ? "Kept forever" : "Kept longer"]
+        ? [plan.max_photos === null ? "No photo limit" : `Up to ${plan.max_photos.toLocaleString("en-GB")} photos`, plan.retention_days === null ? "Kept forever" : "Kept longer"]
         : [label];
       await sendEmail(
         purchase.email,

@@ -5,7 +5,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getPlans, isEventHost, isUuid } from "@/lib/data";
 import { planLimitsEnforced } from "@/lib/payments/config";
 import { getPromptById } from "@/lib/prompts";
-import { isExpired } from "@/lib/plans";
+import { isExpired, photoCapOf } from "@/lib/plans";
 import { networkHash } from "@/lib/requestIp";
 import {
   ALBUM_MAX_PHOTOS,
@@ -50,7 +50,7 @@ export async function startPhotoUpload(input: {
   const supabase = createServiceClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, is_active, expires_at, plan, extra_contributors, legacy_uncapped")
+    .select("id, is_active, expires_at, plan, extra_photos, legacy_uncapped")
     .eq("id", eventId)
     .maybeSingle();
   if (!event) return { ok: false, error: "This album doesn't exist." };
@@ -84,21 +84,26 @@ export async function startPhotoUpload(input: {
     .eq("event_id", eventId);
   if ((albumPhotos ?? 0) >= ALBUM_MAX_PHOTOS) return { ok: false, error: "This album is full." };
 
-  // Guest cap (Stage B, switched on at launch): a NEW guest beyond the plan's
-  // limit is turned away; guests who already shared keep uploading.
-  if (planLimitsEnforced() && !byHost && !event.legacy_uncapped) {
+  // Photo limit (switched on at launch, PLAN_LIMITS_ENFORCED): every photo
+  // counts, the host's too, and so do uploads already under way (unfinished
+  // tickets from the last few minutes), so a burst of guests can't overshoot.
+  if (planLimitsEnforced()) {
     const plan = (await getPlans()).find((p) => p.id === event.plan);
-    if (plan?.max_contributors != null) {
-      const cap = plan.max_contributors + (event.extra_contributors ?? 0);
-      const { count: mine } = await supabase
-        .from("photos")
-        .select("id", { count: "exact", head: true })
+    const cap = plan ? photoCapOf(event, plan) : null;
+    if (cap !== null) {
+      const { count: inFlight } = await supabase
+        .from("upload_tickets")
+        .select("photo_id", { count: "exact", head: true })
         .eq("event_id", eventId)
-        .eq("guest_hash", guestHash);
-      if ((mine ?? 0) === 0) {
-        const { data: usage } = await supabase.rpc("event_usage", { p_event_id: eventId });
-        const contributors = (usage as { contributors: number }[] | null)?.[0]?.contributors ?? 0;
-        if (contributors >= cap) return { ok: false, error: "This album is full. Ask the host to upgrade so more guests can share." };
+        .is("finished_at", null)
+        .gte("created_at", new Date(Date.now() - TICKET_TTL_MS).toISOString());
+      if ((albumPhotos ?? 0) + (inFlight ?? 0) >= cap) {
+        return {
+          ok: false,
+          error: byHost
+            ? "Your album is full. Upgrade your plan or add extra photos to keep sharing."
+            : "This album is full. Ask the host to upgrade so everyone can keep sharing.",
+        };
       }
     }
   }

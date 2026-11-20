@@ -12,6 +12,7 @@ test("albums opened as host are listed on the home page, checked by the server",
 
   const name = `My album ${Date.now()}`;
   await page.getByPlaceholder("Sam & Alex's Wedding").fill(name);
+  await page.getByRole("radio", { name: /Birthday/ }).click();
   await page.getByRole("button", { name: "Create event" }).click();
   await page.waitForURL(/\/host\/.+\?t=/);
   const hostUrl = page.url();

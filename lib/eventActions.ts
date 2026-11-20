@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isEventHost, isUuid } from "@/lib/data";
 import { validateDetails, type DetailsInput, type EventImageKind } from "@/lib/eventDetails";
+import { validateCardText } from "@/lib/cardText";
 
 // Host-only writes for event details (0008_event_details.sql). Server
 // Functions are public POST endpoints, so EVERY function here first checks
@@ -28,6 +29,15 @@ export async function saveEventDetails(eventId: string, hostToken: string, input
   const checked = validateDetails(input);
   if (!checked.ok) return checked;
   const { error } = await createServiceClient().from("events").update(checked.value).eq("id", eventId);
+  return error ? { ok: false, error: "Couldn't save. Try again." } : { ok: true };
+}
+
+/** Custom wording for the printed table card; null = back to the defaults. */
+export async function saveCardText(eventId: string, hostToken: string, input: unknown): Promise<Result> {
+  if (!isUuid(eventId) || !(await isEventHost(eventId, hostToken))) return NOT_HOST;
+  const checked = validateCardText(input);
+  if (!checked.ok) return checked;
+  const { error } = await createServiceClient().from("events").update({ card_text: checked.value }).eq("id", eventId);
   return error ? { ok: false, error: "Couldn't save. Try again." } : { ok: true };
 }
 

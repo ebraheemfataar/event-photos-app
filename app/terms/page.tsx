@@ -79,8 +79,8 @@ const SECTIONS: { id: string; title: string; body: React.ReactNode }[] = [
           album once PayFast confirms the payment, usually within a minute.
         </p>
         <p>
-          A plan sets how many guests can add photos (a guest is a phone that has added at least one photo; viewing is unlimited) and how
-          long the album is kept. Prices and plans may change for future purchases; they never change for an album you&apos;ve already
+          A plan sets how many photos the album can hold (every photo counts, the host&apos;s included; guests and viewing are unlimited)
+          and how long the album is kept. Prices and plans may change for future purchases; they never change for an album you&apos;ve already
           paid for.
         </p>
       </>
@@ -102,7 +102,7 @@ const SECTIONS: { id: string; title: string; body: React.ReactNode }[] = [
         </p>
         <p>
           Refunds go back to the original payment method through PayFast, normally within 7–10 business days. Downgrades aren&apos;t refunded
-          as partial amounts, and unused time or guest spots aren&apos;t refunded after an event.
+          as partial amounts, and unused time or photo space isn&apos;t refunded after an event.
         </p>
         <p>To ask for a refund, contact us (below) with your album name and the PayFast reference from your receipt.</p>
       </>
@@ -133,7 +133,7 @@ const SECTIONS: { id: string; title: string; body: React.ReactNode }[] = [
             <strong>Photos and the name you type</strong> (optional), shown in the album.
           </li>
           <li>
-            <strong>A random ID stored on your phone</strong>, so you can delete your own photos and so guest limits can be counted. We only
+            <strong>A random ID stored on your phone</strong>, so you can delete your own photos and so we can stop upload abuse. We only
             keep a scrambled (hashed) version of it.
           </li>
           <li>

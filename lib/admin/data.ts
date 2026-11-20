@@ -62,7 +62,7 @@ export async function adminStats(): Promise<AdminStats> {
   };
 }
 
-export type AdminEventDetail = AdminEventRow & { host_token: string };
+export type AdminEventDetail = AdminEventRow & { host_token: string; event_type: string | null };
 
 /** One album for its admin page, including the host token (admin only). */
 export async function getAdminEvent(eventId: string): Promise<AdminEventDetail | null> {
@@ -70,10 +70,10 @@ export async function getAdminEvent(eventId: string): Promise<AdminEventDetail |
   const supabase = createServiceClient();
   const [{ data: rows }, { data: token }] = await Promise.all([
     supabase.rpc("admin_event_list", { p_search: eventId, p_limit: 1 }),
-    supabase.from("events").select("host_token").eq("id", eventId).maybeSingle<{ host_token: string }>(),
+    supabase.from("events").select("host_token, event_type").eq("id", eventId).maybeSingle<{ host_token: string; event_type: string | null }>(),
   ]);
   const row = (rows as AdminEventRow[] | null)?.[0];
-  return row && token ? { ...row, host_token: token.host_token } : null;
+  return row && token ? { ...row, host_token: token.host_token, event_type: token.event_type } : null;
 }
 
 export async function getAdminPhotos(eventId: string, limit = 300): Promise<Photo[]> {

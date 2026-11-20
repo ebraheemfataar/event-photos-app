@@ -14,10 +14,10 @@ export const metadata: Metadata = {
 export const revalidate = 3600;
 
 const FAQ: [string, string][] = [
-  ["Who counts as a guest?", "A phone that has added at least one photo. You, the host, never count, and anyone with the link can look at the album for free."],
+  ["What counts towards the limit?", "Every photo in the album, yours included. Invite as many guests as you like: there's no limit on people, and anyone with the link can look for free. A deleted photo frees up its spot."],
   ["Is it a subscription?", "No. You pay once per event. Upgrading later only costs the difference between the plans."],
   ["What happens when the album expires?", "It's deleted, photos and all, on the date shown in your plan. You can keep it longer with an upgrade or the \"Keep 1 more year\" extra before then."],
-  ["What if the album fills up?", "Guests who already shared keep sharing; new guests can still look but can't add photos until you upgrade or add +50 guests."],
+  ["What if the album fills up?", "Everyone can still see every photo, but nobody can add more (you included) until you upgrade or add +100 photos. You'll get a heads-up when it's 80% full."],
   ["How do I pay?", "Securely through PayFast (card or Instant EFT). We never see or store your card details."],
   ["Can I get a refund?", "See our terms and refund policy."],
 ];

@@ -19,7 +19,7 @@ export default async function AdminEmailsPage() {
         paidAt: now,
         providerRef: "1987654",
         purchaseId: "041c109c-2d9f-4afe-90d4-0e3b7a60c73d",
-        whatsNew: ["Up to 300 guests", "Kept for 1 year"],
+        whatsNew: ["Up to 500 photos", "Kept for 1 year"],
       }),
     },
     {

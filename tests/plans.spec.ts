@@ -5,33 +5,34 @@ import { BASE, localEnv, makeJpeg, waitForAlbumSubscription } from "./helpers";
 
 // Monetisation Stage A (0011_plans.sql, lib/plans.ts, app/api/cron/expire).
 
-const FREE: Plan = { id: "free", name: "Free", price_cents: 0, max_contributors: 20, retention_days: 30, shows_badge: true, sort_order: 1 };
-const UNLIMITED: Plan = { ...FREE, id: "unlimited", name: "Unlimited", price_cents: 79900, max_contributors: null, retention_days: null };
+const FREE: Plan = { id: "free", name: "Free", price_cents: 0, max_photos: 50, retention_days: 30, shows_badge: true, sort_order: 1 };
+const NO_LIMIT: Plan = { ...FREE, id: "nolimit", name: "No limit", price_cents: 79900, max_photos: null, retention_days: null };
 const DAY = 86_400_000;
 
-test("planStatus: cap, add-on slots, days left, legacy", () => {
+test("planStatus: photo cap, extra photos, days left, legacy", () => {
   const now = Date.parse("2026-11-12T10:00:00Z");
-  const event = { plan: "free", expires_at: new Date(now + 10 * DAY + 3600_000).toISOString(), extra_contributors: 50, legacy_uncapped: false };
-  const s = planStatus(event, FREE, { photos: 40, contributors: 7 }, now);
-  expect(s.contributorCap).toBe(70);
+  const event = { plan: "free", expires_at: new Date(now + 10 * DAY + 3600_000).toISOString(), extra_photos: 100, legacy_uncapped: false };
+  const s = planStatus(event, FREE, { photos: 40 }, now);
+  expect(s.photoCap).toBe(150);
   expect(s.daysLeft).toBe(10);
-  expect(planStatus({ ...event, legacy_uncapped: true }, FREE, { photos: 0, contributors: 0 }, now).contributorCap).toBeNull();
-  expect(planStatus({ ...event, expires_at: null }, UNLIMITED, { photos: 0, contributors: 0 }, now)).toMatchObject({ contributorCap: null, daysLeft: null });
-  expect(planStatus({ ...event, expires_at: new Date(now - DAY).toISOString() }, FREE, { photos: 0, contributors: 0 }, now).daysLeft).toBe(0);
+  expect(planStatus({ ...event, legacy_uncapped: true }, FREE, { photos: 0 }, now).photoCap).toBeNull();
+  expect(planStatus({ ...event, expires_at: null }, NO_LIMIT, { photos: 0 }, now)).toMatchObject({ photoCap: null, daysLeft: null });
+  expect(planStatus({ ...event, expires_at: new Date(now - DAY).toISOString() }, FREE, { photos: 0 }, now).daysLeft).toBe(0);
 });
 
 test("upgrade price is the difference, never negative; mood thresholds", () => {
-  const MEDIUM: Plan = { ...FREE, id: "medium", name: "Medium", price_cents: 39900, max_contributors: 300, retention_days: 365 };
+  const MEDIUM: Plan = { ...FREE, id: "medium", name: "Medium", price_cents: 39900, max_photos: 500, retention_days: 365 };
   expect(upgradePriceCents(14900, MEDIUM)).toBe(25000);
   expect(upgradePriceCents(0, MEDIUM)).toBe(39900);
   expect(upgradePriceCents(79900, MEDIUM)).toBe(0);
   const now = Date.parse("2026-11-12T10:00:00Z");
-  const ev = { plan: "free", expires_at: new Date(now + 20 * DAY).toISOString(), extra_contributors: 0, legacy_uncapped: false };
-  expect(planMood(planStatus(ev, FREE, { photos: 0, contributors: 4 }, now))).toBe("ok");
-  expect(planMood(planStatus(ev, FREE, { photos: 0, contributors: 18 }, now))).toBe("near");
-  expect(planMood(planStatus(ev, FREE, { photos: 0, contributors: 20 }, now))).toBe("full");
-  expect(planMood(planStatus({ ...ev, expires_at: new Date(now + 3 * DAY).toISOString() }, FREE, { photos: 0, contributors: 1 }, now))).toBe("near");
-  expect(planMood(planStatus({ ...ev, legacy_uncapped: true, expires_at: null }, FREE, { photos: 0, contributors: 500 }, now))).toBe("ok");
+  const ev = { plan: "free", expires_at: new Date(now + 20 * DAY).toISOString(), extra_photos: 0, legacy_uncapped: false };
+  expect(planMood(planStatus(ev, FREE, { photos: 39 }, now))).toBe("ok");
+  expect(planMood(planStatus(ev, FREE, { photos: 40 }, now)), "80% used").toBe("near");
+  expect(planMood(planStatus(ev, FREE, { photos: 50 }, now))).toBe("full");
+  expect(planMood(planStatus({ ...ev, extra_photos: 100 }, FREE, { photos: 50 }, now)), "extra photos make room").toBe("ok");
+  expect(planMood(planStatus({ ...ev, expires_at: new Date(now + 3 * DAY).toISOString() }, FREE, { photos: 1 }, now))).toBe("near");
+  expect(planMood(planStatus({ ...ev, legacy_uncapped: true, expires_at: null }, FREE, { photos: 5000 }, now))).toBe("ok");
 });
 
 test("money and expiry helpers", () => {
@@ -59,7 +60,7 @@ test.describe("end-to-end", () => {
     return { id: row.id, hostUrl: `${BASE}/host/${row.id}?t=${row.host_token}`, guestUrl: `${BASE}/e/${row.id}` };
   }
 
-  test("new events start on Free (20 guests, 30 days); the host sees usage", async ({ page }) => {
+  test("new events start on Free (50 photos, 30 days); the host sees usage", async ({ page }) => {
     const ev = await newEvent(`Plan test ${Date.now()}`);
     const { data } = await service().from("events").select("plan, expires_at, created_at, legacy_uncapped").eq("id", ev.id).single();
     expect(data!.plan).toBe("free");
@@ -67,7 +68,7 @@ test.describe("end-to-end", () => {
     const days = (Date.parse(data!.expires_at) - Date.parse(data!.created_at)) / DAY;
     expect(Math.round(days)).toBe(30);
 
-    // A guest shares a photo → 1 contributor.
+    // A guest shares a photo → 1 of 50 photos used.
     const subscribed = waitForAlbumSubscription(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(ev.guestUrl);
@@ -79,12 +80,12 @@ test.describe("end-to-end", () => {
     await expect(page.getByText("Shared to the album")).toBeVisible({ timeout: 20_000 });
 
     await page.goto(ev.hostUrl);
-    const chip = page.getByRole("button", { name: /^Plan: Free · 1\/20 guests · 29 days left$/ }).first();
+    const chip = page.getByRole("button", { name: /^Plan: Free · 1\/50 photos · 29 days left$/ }).first();
     await expect(chip).toBeVisible();
     await chip.click();
     const sheet = page.getByRole("dialog", { name: "Your plan" });
-    await expect(sheet.getByText("of 20 guests")).toBeVisible();
-    await expect(sheet.getByText("19 spots left")).toBeVisible();
+    await expect(sheet.getByText("of 50 photos")).toBeVisible();
+    await expect(sheet.getByText("photos left")).toBeVisible();
     // Tap a plan: the upgrade price shows. Locally PayFast's sandbox is
     // configured, so checkout is offered (production shows "coming soon"
     // until payments are switched on).
@@ -99,7 +100,8 @@ test.describe("end-to-end", () => {
     const pricing = page.locator("#pricing");
     await expect(pricing.getByText("R149")).toBeVisible();
     await expect(pricing.getByText("R399")).toBeVisible();
-    await expect(pricing.getByText("Up to 20 guests sharing")).toBeVisible();
+    await expect(pricing.getByText("Up to 50 photos")).toBeVisible();
+    await expect(pricing.getByText("Up to 2,000 photos")).toBeVisible();
     // Payments are on locally: paid plans offer "Choose", which picks the plan
     // in the create form.
     await expect(pricing.getByRole("link", { name: /^Choose / })).toHaveCount(3);
@@ -116,7 +118,7 @@ test.describe("end-to-end", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(ev.hostUrl);
     const item = page.getByRole("button", { name: /^Plan · Free/ });
-    await expect(item).toContainText("0/20 guests · 29 days left");
+    await expect(item).toContainText("0/50 photos · 29 days left");
     await item.click();
     await expect(page.getByRole("dialog", { name: "Your plan" })).toBeVisible();
     // Guests never see it.

@@ -6,7 +6,7 @@ export type Plan = {
   id: string;
   name: string;
   price_cents: number;
-  max_contributors: number | null; // null = no limit
+  max_photos: number | null; // null = no limit
   retention_days: number | null; // null = forever
   shows_badge: boolean;
   sort_order: number;
@@ -16,7 +16,7 @@ export type AddOn = {
   id: string;
   name: string;
   price_cents: number;
-  extra_contributors: number;
+  extra_photos: number;
   extra_retention_days: number;
   stackable: boolean;
   sort_order: number;
@@ -27,10 +27,10 @@ export type PlanStatus = {
   planName: string;
   /** The plan's price; what the host has paid for this event so far. */
   priceCents: number;
+  /** Every photo in the album, the host's included. */
   photos: number;
-  contributors: number;
-  /** null = no limit (Unlimited plan, or an event from before pricing). */
-  contributorCap: number | null;
+  /** Plan limit + extra photos bought; null = no limit (an event from before pricing). */
+  photoCap: number | null;
   /** ISO date-time, or null = never deleted. */
   expiresAt: string | null;
   /** Whole days left (0 on the last day), or null when it never expires. */
@@ -43,12 +43,12 @@ export type PlanStatus = {
 const DAY = 24 * 60 * 60 * 1000;
 
 export function planStatus(
-  event: { plan: string; expires_at: string | null; extra_contributors: number; legacy_uncapped: boolean },
+  event: { plan: string; expires_at: string | null; extra_photos: number; legacy_uncapped: boolean },
   plan: Plan,
-  usage: { photos: number; contributors: number },
+  usage: { photos: number },
   now = Date.now()
 ): PlanStatus {
-  const cap = event.legacy_uncapped || plan.max_contributors === null ? null : plan.max_contributors + event.extra_contributors;
+  const cap = photoCapOf(event, plan);
   const expiresAt = event.expires_at;
   const daysLeft = expiresAt === null ? null : Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / DAY));
   return {
@@ -56,13 +56,18 @@ export function planStatus(
     planName: plan.name,
     priceCents: event.legacy_uncapped ? 0 : plan.price_cents,
     photos: usage.photos,
-    contributors: usage.contributors,
-    contributorCap: cap,
+    photoCap: cap,
     expiresAt,
     daysLeft,
     legacy: event.legacy_uncapped,
     showsBadge: plan.shows_badge,
   };
+}
+
+/** How many photos the album may hold, or null for no limit. */
+export function photoCapOf(event: { extra_photos: number; legacy_uncapped: boolean }, plan: Pick<Plan, "max_photos">): number | null {
+  if (event.legacy_uncapped || plan.max_photos === null) return null;
+  return plan.max_photos + (event.extra_photos ?? 0);
 }
 
 /** What an upgrade costs: the new plan minus what's already been paid for
@@ -71,11 +76,15 @@ export function upgradePriceCents(paidCents: number, target: Plan): number {
   return Math.max(0, target.price_cents - paidCents);
 }
 
-/** "ok", "near" (≤10% of guest spots or ≤7 days left) or "full". */
+/** True once 80% of the album's photos are used (the host is warned). */
+export function photosNearlyFull(s: Pick<PlanStatus, "photos" | "photoCap">): boolean {
+  return s.photoCap !== null && s.photos >= Math.ceil(s.photoCap * 0.8);
+}
+
+/** "ok", "near" (80% of photos used, or ≤7 days left) or "full". */
 export function planMood(s: PlanStatus): "ok" | "near" | "full" {
-  if (s.contributorCap !== null && s.contributors >= s.contributorCap) return "full";
-  const left = s.contributorCap === null ? Infinity : s.contributorCap - s.contributors;
-  if (left <= Math.max(2, Math.ceil((s.contributorCap ?? 0) * 0.1))) return "near";
+  if (s.photoCap !== null && s.photos >= s.photoCap) return "full";
+  if (photosNearlyFull(s)) return "near";
   if (s.daysLeft !== null && s.daysLeft <= 7) return "near";
   return "ok";
 }
