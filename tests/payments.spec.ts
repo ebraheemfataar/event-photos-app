@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { amountToCents, centsToAmount, paramString, phpUrlencode, sign, verifySignature, type Pairs } from "../lib/payments/payfast";
+import { createHash } from "node:crypto";
+import { amountToCents, centsToAmount, ipInRanges, itnParamString, paramString, phpUrlencode, sign, verifyItnSignature, verifySignature, type Pairs } from "../lib/payments/payfast";
 import { effectsOf, priceFor } from "../lib/purchaseRules";
 import type { AddOn, Plan } from "../lib/plans";
 import { BASE, guestHash, localEnv, makeJpeg } from "./helpers";
@@ -31,6 +32,25 @@ test.describe("signatures and amounts", () => {
     expect(verifySignature(signed, "other")).toBe(false);
     expect(verifySignature(signed.map(([k, v]) => [k, k === "amount" ? "1.00" : v] as [string, string]), "secret pass")).toBe(false);
     expect(verifySignature(fields, "secret pass"), "no signature").toBe(false);
+  });
+
+  test("ITN signatures keep blank fields (PayFast's ITN rules)", () => {
+    const fields: Pairs = [["m_payment_id", "abc"], ["name_first", "Test"], ["name_last", ""], ["amount_gross", "399.00"]];
+    expect(itnParamString([...fields, ["signature", "x"], ["after", "ignored"]])).toBe("m_payment_id=abc&name_first=Test&name_last=&amount_gross=399.00");
+    const sig = createHash("md5").update(`${itnParamString(fields)}&passphrase=secret+pass`).digest("hex");
+    expect(verifyItnSignature([...fields, ["signature", sig]], "secret pass")).toBe(true);
+    expect(verifyItnSignature([...fields, ["signature", sig]], "other")).toBe(false);
+    // The checkout-form rule (blanks dropped) gives a different string, which was the production bug.
+    expect(verifySignature([...fields, ["signature", sig]], "secret pass")).toBe(false);
+  });
+
+  test("PayFast source IP ranges", () => {
+    expect(ipInRanges("197.97.145.150")).toBe(true);
+    expect(ipInRanges("41.74.179.200")).toBe(true);
+    expect(ipInRanges("144.126.193.139")).toBe(true);
+    expect(ipInRanges("144.126.193.140")).toBe(false);
+    expect(ipInRanges("8.8.8.8")).toBe(false);
+    expect(ipInRanges("not-an-ip")).toBe(false);
   });
 
   test("cents ↔ PayFast amounts", () => {
@@ -101,14 +121,17 @@ test.describe("end-to-end", () => {
       ["m_payment_id", purchaseId],
       ["pf_payment_id", String(Math.floor(Math.random() * 1e9))],
       ["payment_status", status],
+      ["name_first", "Test"],
+      ["name_last", ""], // PayFast sends blank fields and signs them
       ["item_name", "Snap & Share test"],
       ["amount_gross", amount],
       ["amount_fee", "-9.20"],
       ["amount_net", "389.80"],
       ["merchant_id", MERCHANT_ID],
     ];
-    fields.push(["signature", sign(fields, passphrase)]);
-    return new URLSearchParams(fields).toString();
+    const base = itnParamString(fields);
+    const sig = createHash("md5").update(passphrase ? `${base}&passphrase=${phpUrlencode(passphrase)}` : base).digest("hex");
+    return `${base}&signature=${sig}`;
   }
 
   test("checkout: signed form to PayFast; only a valid ITN upgrades the album, once", async ({ page, request }) => {

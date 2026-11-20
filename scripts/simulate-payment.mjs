@@ -43,6 +43,8 @@ const fields = [
   ["m_payment_id", purchase.id],
   ["pf_payment_id", String(Date.now())],
   ["payment_status", status],
+  ["name_first", "Test"],
+  ["name_last", ""], // real ITNs include blank fields in the signature
   ["item_name", "Snap & Share (simulated)"],
   ["amount_gross", (purchase.amount_cents / 100).toFixed(2)],
   ["merchant_id", env.PAYFAST_MERCHANT_ID],

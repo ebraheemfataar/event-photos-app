@@ -2,7 +2,7 @@ import { promises as dns } from "node:dns";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getAddOns, getPlans } from "@/lib/data";
 import { payfastConfig } from "@/lib/payments/config";
-import { amountToCents, paramString, verifySignature, type Pairs } from "@/lib/payments/payfast";
+import { amountToCents, ipInRanges, itnParamString, verifyItnSignature, type Pairs } from "@/lib/payments/payfast";
 import { effectsOf, type PurchaseItem } from "@/lib/purchaseRules";
 import { sendEmail } from "@/lib/email";
 import { receiptEmail } from "@/lib/emailTemplates";
@@ -14,11 +14,20 @@ import { receiptEmail } from "@/lib/emailTemplates";
 // and the exact amount. Repeat notifications are harmless (idempotent).
 
 const ok = () => new Response("OK", { status: 200 });
-const bad = (why: string, status = 400) => new Response(why, { status });
+// Every rejection is logged (no secrets) so Vercel's logs say why.
+const bad = (why: string, status = 400) => {
+  console.warn(`[payfast itn] rejected: ${why}`);
+  return new Response(why, { status });
+};
 
-async function fromPayfast(request: Request, hosts: string[]): Promise<boolean> {
-  const ip = (request.headers.get("x-forwarded-for")?.split(",")[0] ?? request.headers.get("x-real-ip") ?? "").trim();
+function sourceIp(request: Request): string {
+  return (request.headers.get("x-forwarded-for")?.split(",")[0] ?? request.headers.get("x-real-ip") ?? "").trim();
+}
+
+/** PayFast's published ranges, or one of its hostnames' current addresses. */
+async function fromPayfast(ip: string, hosts: string[]): Promise<boolean> {
   if (!ip) return false;
+  if (ipInRanges(ip)) return true;
   const lists = await Promise.all(hosts.map((h) => dns.resolve4(h).catch(() => [] as string[])));
   return lists.flat().includes(ip);
 }
@@ -28,7 +37,7 @@ async function payfastSaysValid(validateUrl: string, pairs: Pairs): Promise<bool
     const res = await fetch(validateUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: paramString(pairs),
+      body: itnParamString(pairs),
       signal: AbortSignal.timeout(10_000),
     });
     return (await res.text()).trim() === "VALID";
@@ -45,10 +54,11 @@ export async function POST(request: Request) {
   const pairs: Pairs = [...new URLSearchParams(body).entries()];
   const field = (k: string) => pairs.find(([key]) => key === k)?.[1] ?? "";
 
-  if (!verifySignature(pairs, config.passphrase)) return bad("Bad signature");
+  if (!verifyItnSignature(pairs, config.passphrase)) return bad(`Bad signature (purchase ${field("m_payment_id") || "?"})`);
   if (!config.skipRemoteChecks) {
-    if (!(await fromPayfast(request, config.validHosts))) return bad("Not from PayFast", 403);
-    if (!(await payfastSaysValid(config.validateUrl, pairs))) return bad("Not confirmed by PayFast");
+    const ip = sourceIp(request);
+    if (!(await fromPayfast(ip, config.validHosts))) return bad(`Not from PayFast (${ip || "no ip"})`, 403);
+    if (!(await payfastSaysValid(config.validateUrl, pairs))) return bad(`Not confirmed by PayFast (purchase ${field("m_payment_id")})`);
   }
   if (field("merchant_id") !== config.merchantId) return bad("Wrong merchant");
 
@@ -58,10 +68,13 @@ export async function POST(request: Request) {
     .select("id, event_id, kind, item, amount_cents, status, email")
     .eq("id", field("m_payment_id"))
     .maybeSingle<{ id: string; event_id: string; kind: "plan" | "add_on"; item: string; amount_cents: number; status: string; email: string | null }>();
-  if (!purchase) return bad("Unknown purchase");
-  if (amountToCents(field("amount_gross")) !== purchase.amount_cents) return bad("Amount mismatch");
+  if (!purchase) return bad(`Unknown purchase ${field("m_payment_id")}`);
+  if (amountToCents(field("amount_gross")) !== purchase.amount_cents) {
+    return bad(`Amount mismatch (purchase ${purchase.id}: got ${field("amount_gross")}, expected ${purchase.amount_cents} cents)`);
+  }
 
   const status = field("payment_status");
+  console.info(`[payfast itn] ${status} for purchase ${purchase.id}`);
   if (status !== "COMPLETE") {
     if (purchase.status === "pending") {
       await supabase

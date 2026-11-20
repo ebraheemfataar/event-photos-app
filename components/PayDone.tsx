@@ -6,6 +6,7 @@ import { getPurchaseDetails, type PurchaseDetails } from "@/lib/checkoutActions"
 import { useMyAlbums } from "@/lib/myAlbums";
 import { formatRand } from "@/lib/plans";
 import Spinner from "@/components/Spinner";
+import PrintReceipt from "@/components/PrintReceipt";
 import { LogoIcon } from "@/components/icons";
 
 type View = PurchaseDetails["status"] | "loading" | "unknown";
@@ -70,6 +71,15 @@ export default function PayDone({ purchaseId, cancelled }: { purchaseId: string;
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {}
+  }
+
+  // The browser's print dialog has "Save as PDF" everywhere; the title
+  // becomes the suggested file name.
+  function downloadReceipt() {
+    const before = document.title;
+    document.title = `Snap-and-Share-receipt-${purchaseId.slice(0, 8)}`;
+    window.print();
+    setTimeout(() => (document.title = before), 1000);
   }
 
   const ev = details?.event;
@@ -161,6 +171,18 @@ export default function PayDone({ purchaseId, cancelled }: { purchaseId: string;
         )}
 
         <div className="flex flex-col gap-2">
+          {shown === "paid" && details && (
+            <button
+              type="button"
+              onClick={downloadReceipt}
+              className="flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-surface text-[15px] font-semibold text-ink transition-colors hover:bg-surface-2"
+            >
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />
+              </svg>
+              Download receipt (PDF)
+            </button>
+          )}
           {back ? (
             <Link
               href={back}
@@ -186,6 +208,7 @@ export default function PayDone({ purchaseId, cancelled }: { purchaseId: string;
           </p>
         )}
       </main>
+      {shown === "paid" && details && <PrintReceipt purchaseId={purchaseId} details={details} />}
     </div>
   );
 }
