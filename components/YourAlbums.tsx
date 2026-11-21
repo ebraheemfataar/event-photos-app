@@ -46,12 +46,14 @@ export default function YourAlbums() {
           </h2>
         </div>
       </div>
-      <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* grid-cols-1 (minmax(0, 1fr)) so a long album name truncates instead of
+          widening the card past the screen on mobile. */}
+      <ul className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map(({ saved: s, album }) => {
           const gone = albums !== null && !album;
           const href = `/host/${s.id}?t=${s.token}`;
           return (
-            <li key={s.id} className="relative flex items-center gap-3 rounded-[22px] border border-line bg-surface p-3 pr-2">
+            <li key={s.id} className="relative flex min-w-0 items-center gap-3 rounded-[22px] border border-line bg-surface p-3 pr-2">
               <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-3 text-sm font-semibold">
                 {album?.cover ? <Image src={album.cover} alt="" fill sizes="56px" className="object-cover" /> : monogram(album?.name ?? s.name)}
               </span>
