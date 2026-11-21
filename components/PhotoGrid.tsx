@@ -6,12 +6,15 @@ import type { Photo } from "@/lib/types";
 import { getPromptById } from "@/lib/prompts";
 import { photoSrc, thumbSrc } from "@/lib/photoSrc";
 import { avatarSwatch, initialOf, promptSwatch, timeAgo } from "@/lib/display";
-import { TrashIcon } from "@/components/icons";
+import { PlusIcon, TrashIcon } from "@/components/icons";
 
 type Common = {
   photos: Photo[];
   freshIds: Set<string>;
   onOpen: (index: number) => void;
+  /** Shows an "add a photo" placeholder after the last photo. Pass it only
+   * when the visitor can upload and every page of photos has loaded. */
+  onAdd?: () => void;
 };
 
 function altFor(photo: Photo) {
@@ -38,7 +41,7 @@ function LoadingImage({ src, alt, sizes, unoptimized = false }: { src: string; a
 }
 
 /** 3-column, 4:5 tiles, 2px gap, edge to edge on mobile. */
-export function GridView({ photos, freshIds, onOpen }: Common) {
+export function GridView({ photos, freshIds, onOpen, onAdd }: Common) {
   return (
     <div className="grid grid-cols-3 gap-0.5 lg:gap-1">
       {photos.map((photo, i) => {
@@ -76,6 +79,16 @@ export function GridView({ photos, freshIds, onOpen }: Common) {
           </button>
         );
       })}
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex aspect-[4/5] flex-col items-center justify-center gap-2 border-2 border-dashed border-line-strong bg-surface text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink lg:rounded-md"
+        >
+          <PlusIcon size={28} strokeWidth={2} />
+          <span className="text-xs font-semibold lg:text-sm">Add a photo</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -85,6 +98,7 @@ export function FeedView({
   photos,
   freshIds,
   onOpen,
+  onAdd,
   onRemove,
   canRemove,
 }: Common & {
@@ -151,6 +165,17 @@ export function FeedView({
           </article>
         );
       })}
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="mx-3.5 flex flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed border-line-strong bg-surface px-6 py-10 text-ink-2 transition-colors hover:bg-surface-3 hover:text-ink lg:mx-0"
+        >
+          <PlusIcon size={32} strokeWidth={2} />
+          <span className="text-[15px] font-semibold">Add your photo</span>
+          <span className="text-xs text-ink-3">It shows up here for everyone, live.</span>
+        </button>
+      )}
     </div>
   );
 }

@@ -126,6 +126,9 @@ export default function EventAlbum({
   // Hosts add photos too (same upload path and RLS as guests); a visitor with
   // a wrong host token ("viewer") can't.
   const canUpload = mode === "guest" || mode === "host";
+  // "Add a photo" placeholder after the last photo — only once every page has
+  // loaded (otherwise it would sit in the middle) and while uploads are open.
+  const addAtEnd = canUpload && isActive && !hasMore ? () => setUploadOpen(true) : undefined;
   const canRemove = isHost && Boolean(onPhotoRemoved) && (demo || Boolean(hostToken));
   // Guests can delete photos they shared from this browser (Phase 2c). The
   // list is only a hint for showing the button; the server re-checks.
@@ -592,12 +595,13 @@ export default function EventAlbum({
                 onInvite={goToInvite}
               />
             ) : view === "grid" ? (
-              <GridView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} />
+              <GridView photos={visible} freshIds={freshIds} onOpen={(i) => setOpenId(visible[i].id)} onAdd={addAtEnd} />
             ) : (
               <FeedView
                 photos={visible}
                 freshIds={freshIds}
                 onOpen={(i) => setOpenId(visible[i].id)}
+                onAdd={addAtEnd}
                 onRemove={removeEnabled ? setRemoveTarget : undefined}
                 canRemove={canRemovePhoto}
               />
@@ -685,6 +689,13 @@ export default function EventAlbum({
               onUploaded={(n) => {
                 setUploadOpen(false);
                 notify(n === 1 ? "Shared to the album" : `${n} photos shared to the album`);
+                // New photos land at the top (newest first). If the uploader is
+                // further down (e.g. used the "Add a photo" tile at the end),
+                // bring them back up so they see theirs arrive.
+                const tabs = tabsRef.current;
+                if (tabs && tabs.getBoundingClientRect().top < 0) {
+                  tabs.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
               }}
             />
           )}
